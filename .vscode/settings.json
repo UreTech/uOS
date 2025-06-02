@@ -1,0 +1,23 @@
+{
+  "files.exclude": {
+    "**/*.o": true
+  },
+  "search.exclude": {
+    "**/*.o": true
+  },
+  "files.associations": {
+    "u_gpio.h": "c",
+    "elf.h": "c",
+    "u_fs.h": "c",
+    "u_ctypes.h": "c",
+    "u_kernelbasefont.h": "c",
+    "u_cstr_util.h": "c",
+    "u_fs_sd.h": "c",
+    "u_uart.h": "c",
+    "u_timer.h": "c",
+    "u_emmc.h": "c",
+    "u_rand.h": "c",
+    "u_display.h": "c",
+    "u_sd_spi.h": "c"
+  }
+}
