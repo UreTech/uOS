@@ -1,3 +1,6 @@
+#define U_KERNEL_BASE_FONT_H
+
+
 #ifndef U_KERNEL_BASE_FONT_H
 #define U_KERNEL_BASE_FONT_H
 

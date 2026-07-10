@@ -7,7 +7,7 @@ typedef unsigned int uint32_t;
 typedef long long int64_t;
 typedef unsigned long long uint64_t;
 typedef unsigned long long uintptr_t;
-typedef long long intptr_t; 
+typedef long long intptr_t;
 #define true 1
 #define false 0
 typedef uint8_t bool;
@@ -22,3 +22,13 @@ typedef uint64_t u64;
 typedef uint64_t size_t;
 #define NULL 0
 #define nullptr NULL
+
+//#define IDX_NONE ((uint32_t)-1)
+
+#define UINT8_MAX 0xFFu
+#define UINT16_MAX 0xFFFFu
+#define UINT32_MAX 0xFFFFFFFFu
+#define UINT64_MAX 0xFFFFFFFFFFFFFFFFu
+
+// util macro
+#define ONEBIT(offset) ((uint64_t)(1) << offset)

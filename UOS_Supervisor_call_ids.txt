@@ -1,0 +1,39 @@
+SRH Handler ID Table
+
+[0]:
+	NULL
+	note: this handle is null so kernel skips this request
+
+[1]:
+	kmalloc
+	note: allocates memory with current thread id
+	
+[2]:
+	kvmalloc
+	note: allocates memory with current thread id
+
+[3]:
+	kreloc
+	note: reallocates memory with current thread id
+
+[4]:
+	kvreloc
+	note: reallocates memory with current thread id
+
+[5]:
+	kfree
+
+[6]:
+	kvfree
+	
+[7]:
+	pmalloc
+	
+[8]:
+	vpmalloc
+
+[9]:
+	pfree
+	
+[10]:
+	vpfree
