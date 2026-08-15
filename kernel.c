@@ -54,85 +54,36 @@ D: Section name
 -UX: uX Api
 */
 
-#include "u_gpio.h" // basic gpio
-#include "u_uart.h"
+#include <u_kernel/drivers/gpio/u_gpio.h> // basic gpio
+#include <u_kernel/drivers/uart/u_uart.h>
 
-#include "u_display.h" // basic display
-#include "u_rand.h"	   // basic random
+// #include "u_display.h" // basic display
+#include <u_kernel/util/random/u_rand.h>   // hardware & seed random
 
-#include <memory/u_memory.h>
+#include <u_kernel/memory/u_memory.h>
 
-#include <u_SuperRH.h>
+#include <u_kernel/framework/SupervisorRequestHandler/u_SuperRH.h>
 
-#include "u_spi_flash.h"
+#include <u_kernel/drivers/emmc/u_emmc.h>
 
-#include "u_cstr_util.h"
+#include <u_kernel/filesystem/vfs/vfs.h>
+#include <u_kernel/filesystem/ufs/ufs.h>
+#include <u_kernel/filesystem/fat/fat.h>
 
-#include "u_terminal.h"
+#include <u_kernel/util/u_cstr_util.h>
 
-#include "u_fs.h"
+#include <u_kernel/arch/arm/u_arm.h>
 
-#include "u_arm.h"
+#include <u_kernel/framework/threading/u_thread.h>
 
-#include "u_thread.h"
+#include <u_kernel/memory/u_mmu.h>
 
-#include "u_mmu.h"
-
-#include "u_uX.h"
+#include <u_kernel/uFX/u_uFX.h>
 
 // Pixel565 *mainDisplayBuffer;
 u64 elapsedMS;
 time_point start, end;
 size_t freeBytes;
-
-char tmpstr[40];
-
-void start_sd(void)
-{
-	// Initialize the SD card
-	if (sd_init() != SD_OK)
-	{
-		uart_print("SD boot init fail!\n<UER:Ke:S0:SD>\n");
-		return;
-	}
-
-	// Get capacity in bytes
-	uint64_t size_bytes = sd_get_size();
-
-	// Get capacity in blocks (1 block = 512 bytes)
-	uint32_t block_count = sd_get_block_count();
-
-	// Print results
-	uart_print("SDsize:\n");
-	uart_print("  Bytes: ");
-	uart_print(ulltoa(size_bytes, tmpstr));
-	uart_print("\n");
-
-	char *tstr[3];
-
-	tstr[0] = "SDsize: ";
-	tstr[1] = ftoa((float)size_bytes / (1024.0f * 1024.0f * 1024.0f), 2, tmpstr);
-	tstr[2] = " Gb";
-
-	char *astr = append_strs((char **)&tstr, 3);
-	kfree(astr);
-	/*
-	if (ufs_init_sd() == UFS_FAIL)
-	{
-	uart_print("Formating sd...\n");
-	if (ufs_format_sd() == UFS_SUCCESS)
-	{
-	uart_print("Format OK!\n");
-	ut_print("Format OK!");
-	}
-	else
-	{
-	uart_print("Format ERR!\n");
-	ut_print("Format ERR!");
-	}
-	}
-	*/
-}
 
 __attribute__((optnone)) uint64_t this_must_return_input(uint64_t input)
 {
@@ -159,6 +110,27 @@ void t2()
 	}
 }
 
+static inline void disable_dcache(void)
+{
+    uint64_t sctlr;
+
+    asm volatile(
+        "mrs %0, sctlr_el1\n"
+        "bic %0, %0, #(1 << 2)\n"
+        "msr sctlr_el1, %0\n"
+        "isb\n"
+        : "=r"(sctlr)
+        :
+        : "memory"
+    );
+
+	uint64_t sctlr__;
+asm volatile("mrs %0, sctlr_el1" : "=r"(sctlr__));
+uart_print("SCTLR_EL1 M bit (MMU enable): ");
+uart_print_dec(sctlr__ & 0x1);
+uart_print("\n");
+}
+
 // unused here
 extern void el1_sync_handler();
 extern void irq_vector_entry();
@@ -167,16 +139,12 @@ void main()
 {
 	uart_init(UA_B115200);
 	led_init();
+	srand(0x330633);
+	init_hardware_rng();
 
 	vbar_set(_el1_vectors_);
 
 	uart_print("kernel wake up!\n");
-
-	uart_print("uart_print addr: 0x");
-	uart_print_hex64((uint64_t)&uart_print);
-	uart_print(" mmu_enable addr: 0x");
-	uart_print_hex64((uint64_t)&mmu_enable);
-	uart_print("\n");
 
 	// some systems use this variable so pre assigning prevents too many bugs
 	current_thread = UOS_KERNEL_THREAD_ID;
@@ -199,6 +167,22 @@ void main()
 	// init thread system
 	u_thread_initsys_();
 	uart_print("thread system intiated!\n");
+
+	emmc_init();
+
+	uart_print("SD init...\n");
+	if(emmc_init_sd_card() == EMMC_SUCCESS){
+		uart_print("SD init successful!\n");
+		if(format_sd_gpt_with_pre_partitions() == UFS_SUCCESS){
+			uart_print("GPT partitions created!\n");
+		}else{
+			uart_print("GPT partition creation failed!\n");
+		}
+	}else{
+		uart_print("SD init failed!\n");
+	}
+
+	while(true);
 
 	// mmu is off here
 
@@ -310,13 +294,21 @@ void main()
 
 	uart_print("Unmapping old low va\n");
 	// unmap old pa=va kernel bss/code/stack region
+	
+	// unmap low va kernel text
+	mmu_unmap_range(_kernel_text_start_, _kernel_text_size_, get_mmu_ctx(UOS_KERNEL_THREAD_ID));
 
-	// unmap old kernel code & bss other data..
+	// unmap low va kernel bss
+	mmu_unmap_range(_kernel_bss_start_, _kernel_bss_size_, get_mmu_ctx(UOS_KERNEL_THREAD_ID));
 
-	//mmu_unmap_range(get_mmu_ctx(UOS_KERNEL_THREAD_ID), _kernel_start_pa_ptr_, _kernel_end_pa_ptr_ - _kernel_start_pa_ptr_);
+	// unmap low va kernel data
+	mmu_unmap_range(_kernel_data_start_, _kernel_data_size_, get_mmu_ctx(UOS_KERNEL_THREAD_ID));
 
-	// unmap old kernel stack
-	// nope mmu_unmap_range(get_mmu_ctx(UOS_KERNEL_THREAD_ID), _kernel_stack_start_pa_ptr_, _kernel_stack_end_pa_ptr_ - _kernel_stack_start_pa_ptr_ - (4096));
+	// unmap low va kernel rodata
+	mmu_unmap_range(_kernel_rodata_start_, _kernel_rodata_size_, get_mmu_ctx(UOS_KERNEL_THREAD_ID));
+
+	// unmap low va kernel stack
+	mmu_unmap_range(_kernel_stack_start_pa_ptr_, _kernel_stack_end_pa_ptr_ - _kernel_stack_start_pa_ptr_, get_mmu_ctx(UOS_KERNEL_THREAD_ID));
 
 	uart_print("MMU enabled successfuly!\n");
 
@@ -331,10 +323,7 @@ void main()
 
 	delay_ms(1000);
 
-	srand(0x330633);
-
-	int *a = 0ULL;
-	*a = 0;
+	uart_print("inf wait\n");
 
 	while (true)
 		; // wait here
@@ -351,13 +340,9 @@ void main()
 	char *terinp = (char *)kmalloc(300);
 	*terinp = '\0';
 
-	spi_init();
-
 	// test stuff
 	void *ptr = NULL;
 	void *oPtr = ptr;
-
-	start_sd();
 
 	uart_print("kernel loop start\n");
 	while (1)
@@ -387,26 +372,10 @@ void main()
 			else if (!strcmp(terinp, "ufs_format"))
 			{
 				uart_print("Formating sd...\n");
-				if (ufs_format_sd() == UFS_SUCCESS)
-				{
-					uart_print("Format OK!\n");
-				}
-				else
-				{
-					uart_print("Format ERR!\n");
-				}
 				uart_print("SD UFS formated!\n");
 			}
 			else if (!strcmp(terinp, "ufs_init"))
 			{
-				if (ufs_init_sd() == UFS_FAIL)
-				{
-					uart_print("UFS init error!\n");
-				}
-				else
-				{
-					uart_print("UFS init success!\n");
-				}
 			}
 			else if (!strcmp(terinp, "mstat"))
 			{

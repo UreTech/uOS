@@ -1,7 +1,8 @@
-CFILES = $(wildcard */*.c & *.c)
+CFILES = $(shell find . -type f -name '*.c')
 OFILES = $(CFILES:.c=.o)
-INCLUDEPATH = /media/urdec-lx/common_disk/vsProjects/uOS_new
-GCCFLAGS = -g -Wall -O0 -fPIE -ffreestanding -nostdinc -nostdlib -Wno-attributes -Wno-unused-variable -Wno-int-conversion -Wno-int-to-pointer-cast -Wno-array-bounds -Wno-unused-but-set-variable
+INCLUDEPATH = /mnt/common_disk/vsProjects/uOS_new
+GCCFLAGS = -g -Wall -O0 -fPIE -ffreestanding -nostdinc -nostdlib -mcpu=cortex-a72 -Wno-pointer-to-int-cast -Wno-attributes -Wno-unused-variable -Wno-int-conversion -Wno-int-to-pointer-cast -Wno-array-bounds -Wno-unused-but-set-variable
+CFLAGS = 
 
 UNAME_S := $(shell uname -s)
 
@@ -10,7 +11,7 @@ ifeq ($(UNAME_S),Linux)
 all: clean uOSkernel8.img
 
 %.o: %.c
-	"aarch64-none-elf-gcc" -I $(INCLUDEPATH) $(GCCFLAGS) -c $< -o $@
+	"aarch64-none-elf-gcc" -I $(INCLUDEPATH) $(GCCFLAGS) $(CFLAGS) -c $< -o $@
 
 boot.o: boot.S
 	"aarch64-none-elf-gcc" -I $(INCLUDEPATH) $(GCCFLAGS) -c boot.S -o boot.o

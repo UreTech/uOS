@@ -270,7 +270,7 @@ el1_sync_handler:
 	stp x29, x30, [sp, #-16]!
 	stp x0, x1, [sp, #-16]!
 	stp x2, x3, [sp, #-16]!
-	
+
 	mrs x0, ESR_EL1
 	mrs x1, FAR_EL1
 	mrs x2, ELR_EL1
