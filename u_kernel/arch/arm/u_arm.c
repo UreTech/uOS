@@ -380,7 +380,7 @@ void print_exception_info(uint64_t esr, uint64_t far, uint64_t elr, uint64_t sps
 	uart_print("SPSR= 0x");
 	uart_print_hex64(spsr);
 	uart_print(" (Saved Program Status Register)\n");
-/*
+
 	uint64_t sp = 0;
 	asm volatile(
     	"mov %0, sp"
@@ -390,7 +390,7 @@ void print_exception_info(uint64_t esr, uint64_t far, uint64_t elr, uint64_t sps
 	uart_print("SP= 0x");
 	uart_print_hex64(sp);
 	uart_print(" (Stack Pointer)\n");
-*/
+
 	uint64_t sctlr;
 	asm volatile("mrs %0, sctlr_el1"
 				 : "=r"(sctlr));

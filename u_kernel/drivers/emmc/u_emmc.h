@@ -125,8 +125,6 @@
 
 // util
 #define SD_CMD(idx) (idx)
-#define EMMC_FAIL false
-#define EMMC_SUCCESS true
 
 // THIS IS MACRO IS MOST IMPORTANT THING HERE!
 #define ARM_TO_SDMA_BUS_ADDR(addr) ((uint32_t)(addr) + 0xC0000000UL)
@@ -165,16 +163,19 @@ typedef struct
 
 
 
-void emmc_soft_reset();
+uos_result emmc_soft_reset();
 
 void emmc_init();
 
-int emmc_init_sd_card();
+uos_result emmc_init_sd_card();
 
 _sd_card_csd_ emmc_get_current_csd();
 _sd_card_identification_struct_ emmc_get_current_cid();
+_sd_card_info_ emmc_get_card_info();
 
-int emmc_read_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer);
-int emmc_write_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer);
+uos_result emmc_read_sd_card(uint64_t block_index, size_t block_count, uint8_t* buffer);
+uos_result emmc_write_sd_card(uint64_t block_index, size_t block_count, uint8_t* buffer);
 
+// udevice handle specific functions
+size_t emmc_get_lba_count_handle();
 #endif

@@ -10,12 +10,17 @@
 #define UOBJECT_MAX_NAME_LEN (47ULL) // null term excluded
 
 // object type ids
-// this ids points the index of table
 #define UOBJECT_TYPE_EMPTY (0ULL) // empty flag
-#define UOBJECT_TYPE_NULL (1ULL) // no table assigned
-#define UOBJECT_TYPE_UHANDLE (2ULL) // handle table
-#define UOBJECT_TYPE_DEVICE (3ULL) // udevice table
-#define UOBJECT_TYPE_CUSTOM (4ULL) // custom object table
+#define UOBJECT_TYPE_NULL (1ULL) // handle
+#define UOBJECT_TYPE_FSI (2ULL) // filesystem interface
+#define UOBJECT_TYPE_DEVICE (3ULL) // udevice
+#define UOBJECT_TYPE_CUSTOM (4ULL) // custom object
+
+// object flags
+#define UOBJECT_FLAG_RESERVED_OBJECT ONEBIT(0)
+#define UOBJECT_FLAG_NOT_SHAREABLE ONEBIT(1)
+#define UOBJECT_FLAG_KERNEL_ONLY ONEBIT(2)
+#define UOBJECT_FLAG_EXTERNAL ONEBIT(3)
 
 // base kernel object
 // 256 bytes (32 entry per page)
@@ -40,6 +45,10 @@ uobject_ref uobject_create_null(const char* name, uint64_t flags);
 uobject_ref uobject_create_custom(const char* name, uint64_t flags, uint8_t* data, size_t data_size);
 
 uobject_ref uobject_create_udevice(const char* name, uint64_t flags, udevice device_header);
+
+uobject* uobject_open_object(uobject_ref ref, uint64_t object_type);
+
+uos_result uobject_close_object(uobject_ref ref);
 
 
 #endif

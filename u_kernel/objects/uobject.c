@@ -67,3 +67,48 @@ uobject_ref uobject_create_null(const char* name, uint64_t flags){
 uobject_ref uobject_create_udevice(const char* name, uint64_t flags, udevice device_header){
    return uobject_create(UOBJECT_TYPE_DEVICE, name, flags, (uint8_t*)&device_header, sizeof(udevice));
 }
+
+uobject* uobject_open_object(uobject_ref ref, uint64_t object_type){
+
+    // WARNING: There is should be a ref check for not opening same thing twice
+
+    if(ref >= UOBJECT_MAXIMUM_OBJECT_COUNT){
+        udbP("UOBJECT ERROR: Invalid object referance!");
+        return nullptr;
+    }
+
+    u_mutex_lock_el1(&object_table_lock); // lock
+
+    if(object_table[ref].type != object_type){
+        u_mutex_unlock_el1(&object_table_lock); // unlock
+        udbP("UOBJECT ERROR: Object type mismatch!");
+        return nullptr;
+    }
+
+    u_mutex_lock_el1(&(object_table[ref].ref_lock)); // lock ref counter
+    object_table[ref].ref_count++;
+    u_mutex_unlock_el1(&(object_table[ref].ref_lock)); // unlock ref counter
+
+    u_mutex_unlock_el1(&object_table_lock); // unlock
+
+    return &object_table[ref];
+}
+
+uos_result uobject_close_object(uobject_ref ref){
+    // WARNING: There is should be a ref check for not closing same thing twice
+
+        if(ref >= UOBJECT_MAXIMUM_OBJECT_COUNT){
+        udbP("UOBJECT ERROR: Invalid object referance!");
+        return FAIL;
+    }
+
+    u_mutex_lock_el1(&object_table_lock); // lock
+
+    u_mutex_lock_el1(&(object_table[ref].ref_lock)); // lock ref counter
+    object_table[ref].ref_count--;
+    u_mutex_unlock_el1(&(object_table[ref].ref_lock)); // unlock ref counter
+
+    u_mutex_unlock_el1(&object_table_lock); // unlock
+
+    return SUCCESS;
+}

@@ -60,10 +60,10 @@
 
 typedef struct{
     uint64_t family; // family id
-    uint8_t path[8]; // path
     uint64_t type; // type id
     uint64_t symbols[12]; // func / var ptr etc.
-}udevice;
+    uint8_t path[8]; // path
+}__attribute__((aligned(16))) udevice;
 
 // common storage symbol idx
 #define UDEV_SYM_STORAGE_GET_LBA_COUNT_IDX (0ULL)
@@ -81,11 +81,11 @@ typedef struct{
 
 // common storage function pointers
 typedef size_t (*udev_storage_get_lba_count_fptr)(); // idx 0
-typedef int (*udev_storage_read_fptr)(uint64_t start_lba, size_t lba_count, uint8_t* read_buffer); // idx 1
-typedef int (*udev_storage_write_fptr)(uint64_t start_lba, size_t lba_count, uint8_t* write_buffer); // idx 2
-typedef int (*udev_storage_safe_shutdown_fptr)(); // idx 3
-typedef int (*udev_storage_software_reset_fptr)(); // idx 4
-typedef int (*udev_storage_start_fptr)(); // idx 5
+typedef uos_result (*udev_storage_read_fptr)(uint64_t start_lba, size_t lba_count, uint8_t* read_buffer); // idx 1
+typedef uos_result (*udev_storage_write_fptr)(uint64_t start_lba, size_t lba_count, uint8_t* write_buffer); // idx 2
+typedef uos_result (*udev_storage_safe_shutdown_fptr)(); // idx 3
+typedef uos_result (*udev_storage_software_reset_fptr)(); // idx 4
+typedef uos_result (*udev_storage_start_fptr)(); // idx 5
 // emmc sd card
 typedef _sd_card_info_ (*udev_emmc_storage_card_info_fptr)(); // idx 6
 
@@ -97,12 +97,12 @@ typedef struct
     udev_storage_safe_shutdown_fptr safe_shutdown; // idx 3
     udev_storage_software_reset_fptr software_reset; // idx 4
     udev_storage_start_fptr start; // idx 5
-}udevice_storage_function_pointers;
+}__attribute__((aligned(16))) udevice_storage_function_pointers;
 
 typedef struct
 {
     udevice_storage_function_pointers common; // idx 0-5
     udev_emmc_storage_card_info_fptr get_card_information; // idx 6
-}udevice_emmc_storage_function_pointers;
+}__attribute__((aligned(16))) udevice_emmc_storage_function_pointers;
 
 #endif

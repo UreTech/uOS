@@ -8,7 +8,7 @@
 
 #define VFS_TYPE_EMPTY (0ULL)
 #define VFS_TYPE_NULL (1ULL)
-#define VFS_TYPE_STORAGE (2ULL)
+#define VFS_TYPE_FS_PARTITION    (2ULL)
 #define VFS_TYPE_SYSTEM (3ULL)
 #define VFS_TYPE_DEVICE (4ULL)
 #define VFS_TYPE_DIRECTORY (5ULL)
@@ -30,9 +30,16 @@ void vfs_init();
 uos_result vfs_create_directory(const char* dir_path, const char* name);
 uos_result vfs_create_device(const char* dir_path, const char* name, uobject_ref object);
 
+uobject_ref vfs_get_device_ref(const char* path);
+
 vfs_entry* vfs_find_entry(const char* path);
 vfs_entry* vfs_add_entry(const char* dir_path, vfs_entry entry);
 
 uos_result vfs_check_name(const char* name);
+
+uos_result vfs_mount_gpt_partitions(uobject_ref storage_device_obj);
+
+// debug
+void _vfs_debug_list_under_dir_(const char* dir);
 
 #endif

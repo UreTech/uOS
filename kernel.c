@@ -1,57 +1,5 @@
 /*
-uOS Kernel Version: U25Q4-AArch64-Urik4
-uX Version: Kernel Embed (look u_uX.h for full version name)
-
-Expected version calendar:
-- Alpha versions
-U25Q4-AArch64-Urik4 <-
-U26Q1-AArch64-Urik5
-U26Q1-AArch64-Urik6
-U26Q1-AArch64-Urik7
-...
-
-- E1 Release
-U26Q2-AArch64-UrikAsit-E1
-
-- E2 beta
-U26Q2-AArch64-UrikAsit-E2-d00
-...
-U26Q3-AArch64-UrikAsit-E2-d10
-
-- E2 Release
-U26Q3-AArch64-UrikAsit-E2
-
--E3s beta (Security Enhanced)
-U26Q4-AArch64-UrikAsit-E3s-d00
-...
-U27Q1-AArch64-UrikAsit-E3s-d10
-
-- E3s Release (Security Enhanced)
-U27Q1-AArch64-UrikAsit-E3s
-*/
-
-/*
-uOS info code structure
-<A:B:C:D>
-
-A: Info type
--UIN: Info
--UWR: Warn
--UER: Error
--UFE: Fatal Error
-
-B: Location id
--Ke: Kernel entry
--Au: Api unkown
--Ux: uX Api
-
-C: Section of B
--S[X]: X. modified or added section
-
-D: Section name
--SD: SD card
--UFS: uFileSystem
--UX: uX Api
+uOS Kernel Version: U26Q3-AArch64-Urik4
 */
 
 #include <u_kernel/drivers/gpio/u_gpio.h> // basic gpio
@@ -80,7 +28,6 @@ D: Section name
 
 #include <u_kernel/uFX/u_uFX.h>
 
-// Pixel565 *mainDisplayBuffer;
 u64 elapsedMS;
 time_point start, end;
 size_t freeBytes;
@@ -168,12 +115,31 @@ void main()
 	u_thread_initsys_();
 	uart_print("thread system intiated!\n");
 
+	// init vfs
+	vfs_init();
+	// create common vfs directories
+    vfs_create_directory("/", "devices");
+    vfs_create_directory("/devices", "storage");
+    vfs_create_directory("/devices", "gpio");
+    vfs_create_directory("/devices", "uart");
+    vfs_create_directory("/devices", "hardwareRNG");
+
+    vfs_create_directory("/", "parts"); // partitions
+ 
+    vfs_create_directory("/", "uOS");
+    vfs_create_directory("/uOS", "info");
+    vfs_create_directory("/uOS/info", "aarch64");
+
+	// init uobject
+	uobject_init_uobject_tables();
+
 	emmc_init();
 
 	uart_print("SD init...\n");
-	if(emmc_init_sd_card() == EMMC_SUCCESS){
+	if(emmc_init_sd_card() == SUCCESS){
 		uart_print("SD init successful!\n");
-		if(format_sd_gpt_with_pre_partitions() == UFS_SUCCESS){
+		uobject_ref emmc_storage_device = vfs_get_device_ref("/devices/storage/emmc0");
+		if(format_sd_gpt_with_pre_partitions(emmc_storage_device) == UFS_SUCCESS){
 			uart_print("GPT partitions created!\n");
 		}else{
 			uart_print("GPT partition creation failed!\n");

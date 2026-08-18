@@ -20,6 +20,8 @@ size_t parse_read_count(char* input, char seperator);
 
 size_t strlen(const char *str, size_t maxSize);
 
+size_t wstrlen(uint16_t *str, size_t maxSize);
+
 char toupper(char ch);
 
 // be careful! can lock down the kernel!

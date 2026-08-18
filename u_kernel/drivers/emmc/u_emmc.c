@@ -1,18 +1,24 @@
-#include <emmc/u_emmc.h>
-#include <u_uart.h>
-#include <u_timer.h>
-#include <u_gpio.h>
-#include <u_cstr_util.h>
+#include <u_kernel/drivers/emmc/u_emmc.h>
+#include <u_kernel/drivers/uart/u_uart.h>
+#include <u_kernel/timer/u_timer.h>
+#include <u_kernel/drivers/gpio/u_gpio.h>
+#include <u_kernel/util/u_cstr_util.h>
+#include <u_kernel/memory/u_memory.h>
 
-void emmc_soft_reset(){
+#include <u_kernel/objects/uobject.h>
+#include <u_kernel/filesystem/vfs/vfs.h>
+
+uos_result emmc_soft_reset(){
     *EMMC_SOFT_RESET_CONTROL_REGISTER = EMMC_RESET_ALL_BIT;
     time_point start = get_now();
     while((*EMMC_SOFT_RESET_CONTROL_REGISTER & EMMC_RESET_ALL_BIT)){
         if(tp_to_ms(get_now() - start) > 1000){
             udbP("EMMC ERROR: Reset timeout!");
+            return FAIL;
             break;
         }
     }
+    return SUCCESS;
 }
 
 void _emmc_init_clock_(uint32_t clock_in_hz){
@@ -354,6 +360,17 @@ _sd_card_identification_struct_ emmc_get_current_cid(){
     return cid;
 }
 
+uobject_ref device_ref = UOBJECT_NOT_DEFINED;
+
+_sd_card_info_ emmc_get_card_info(){
+    _sd_card_info_ info = {};
+    if(device_ref != UOBJECT_NOT_DEFINED){
+        info.cid = cid;
+        info.csd = csd;
+    }
+    return info;
+}
+
 bool emmc_wait_card_transfer_state(){
     time_point start = get_now();
     while(tp_to_ms(get_now() - start) < 2000){
@@ -369,8 +386,9 @@ bool emmc_wait_card_transfer_state(){
     return false;
 }
 
+
 // returns EMMC_FAIL or EMMC_SUCCESS
-int emmc_init_sd_card(){
+uos_result emmc_init_sd_card(){
     *EMMC_INTERRUPT_STATUS_ENABLE_REGISTER |= EMMC_IRQ_CMD_COMPLETE_ENABLE_BIT | EMMC_IRQ_TRANSFER_COMPLETE_ENABLE_BIT | EMMC_IRQ_DMA_ENABLE_BIT; // enable irqs
     *EMMC_ERROR_INTERRUPT_STATUS_ENABLE_REGISTER = 0xFFFF; // enable all of error interrupts
 
@@ -379,13 +397,13 @@ int emmc_init_sd_card(){
     // set idle / reset
     if(_emmc_send_sd_command_(SD_CMD(0), 0x0, false, false, false, CMD_RESP_NONE)){
         udbP("EMMC SD ERROR: CMD0 failed!");
-        return EMMC_FAIL;
+        return FAIL;
     }
 
     // check sdc v2
     if(_emmc_send_sd_command_(SD_CMD(8), 0x1AA, false, true, true, CMD_RESP_48)){
         udbP("EMMC SD ERROR: CMD8 failed!");
-        // return EMMC_FAIL;
+        // return FAIL;
     }
 
     // send ACMD41 until EMMC_OCR_READY_BIT goes high
@@ -395,12 +413,12 @@ int emmc_init_sd_card(){
         // send CMD55 first
         if(_emmc_send_sd_command_(SD_CMD(55), 0x0, false, false, false, CMD_RESP_48)){
             udbP("EMMC SD ERROR: CMD55 failed!");
-            return EMMC_FAIL;
+            return FAIL;
         }
         // then send CMD41 with HCS argument
         if(_emmc_send_sd_command_(SD_CMD(41), (1u << 30) | 0x00FF8000, false, false, false, CMD_RESP_48)){
             udbP("EMMC SD ERROR: CMD41 failed!");
-            return EMMC_FAIL;
+            return FAIL;
         }
 
         // then check OCR response
@@ -421,14 +439,14 @@ int emmc_init_sd_card(){
 
         if(tp_to_ms(get_now() - start) > 1000){
             udbP("EMMC ERROR: ACMD41 busy timeout!");
-            return EMMC_FAIL;
+            return FAIL;
         }
     }
     
     // get CID
     if(_emmc_send_sd_command_(SD_CMD(2), 0x0, false, true, false, CMD_RESP_136)){
         udbP("EMMC SD ERROR: CMD2 failed!");
-        return EMMC_FAIL;
+        return FAIL;
     }
     uint32_t regs[4];
     
@@ -458,14 +476,14 @@ int emmc_init_sd_card(){
     // get RCA
     if(_emmc_send_sd_command_(SD_CMD(3), 0x0, false, true, true, CMD_RESP_48)){
         udbP("EMMC SD ERROR: CMD3 failed!");
-        return EMMC_FAIL;
+        return FAIL;
     }
     current_rca = (*EMMC_RESPONSE0_REGISTER >> 16) & 0xFFFF;
 
     // get CSD
     if(_emmc_send_sd_command_(SD_CMD(9), (current_rca << 16), false, true, false, CMD_RESP_136)){
         udbP("EMMC SD ERROR: CMD9 failed!");
-        return EMMC_FAIL;
+        return FAIL;
     }
 
     // convert big endian
@@ -487,7 +505,7 @@ int emmc_init_sd_card(){
 
      if(csd.csd_version == 0){
         udbP("EMMC ERROR: SDSC is not supported :(")
-        return EMMC_FAIL;
+        return FAIL;
     }else if(csd.csd_version != 3){
         udbP("EMMC INFO: SDHC/SDXC card detected.")
         uart_print("CSD version: ");
@@ -499,22 +517,56 @@ int emmc_init_sd_card(){
         uart_print("bytes\n");
     }else{
         udbP("EMMC ERROR: CSD version is invalid!")
-        return EMMC_FAIL;
+        return FAIL;
     }
 
     // setup transfer
     if(_emmc_send_sd_command_(SD_CMD(7), (current_rca << 16), false, true, true, CMD_RESP_48_BUSY)){
         udbP("EMMC SD ERROR: CMD7 failed!");
-        return EMMC_FAIL;
+        return FAIL;
     }
 
     // set block size
     *EMMC_BLOCK_SIZE_REGISTER = EMMC_SDMA_DEFAULT_SDMA_BOUND_FLAG | csd.max_read_data_block_length;
     _emmc_set_clock_(CLOCK_MHZ(25));
-    return EMMC_SUCCESS;
+
+    // if device does not exsist create device & add it to vfs
+    if(device_ref == UOBJECT_NOT_DEFINED){
+        udevice dev;
+        dev.path[0] = UDEVICE_PATH_AXIBUS;
+        dev.path[1] = UDEVICE_PATH_EMMC;
+        dev.path[2] = UDEVICE_PATH_END;
+        dev.family = UDEVICE_FAMILY_STORAGE;
+        dev.type = UDEVICE_TYPE_EMMC_STORAGE;       
+        udevice_emmc_storage_function_pointers symbol_table;
+        symbol_table.common.get_lba_count = emmc_get_lba_count_handle;
+        symbol_table.common.read = emmc_read_sd_card;
+        symbol_table.common.write = emmc_write_sd_card;
+        symbol_table.common.safe_shutdown = nullptr; // change this later
+        symbol_table.common.software_reset = emmc_soft_reset;
+        symbol_table.common.start = emmc_init_sd_card;  
+        symbol_table.get_card_information = emmc_get_card_info;
+        memcpy(dev.symbols, &symbol_table, sizeof(symbol_table));
+
+        device_ref = uobject_create_udevice("emmc storage controller device", NULL, dev);
+
+        if(device_ref == UOBJECT_NOT_DEFINED){
+            udbP("EMMC SD ERROR: Failed to create UDEVICE!");
+            return FAIL;
+        }
+
+        // add to vfs
+        if(vfs_create_device("/devices/storage", "emmc0", device_ref) == FAIL){
+            udbP("EMMC SD ERROR: Failed to create UDEVICE file!");
+            // destroy created uobject here otherwise everything blowups
+            return FAIL;
+        }
+        
+    }
+    return SUCCESS;
 }
 
-int emmc_read_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer){
+uos_result emmc_read_sd_card(uint64_t block_index, size_t block_count, uint8_t* buffer){
 
     uint8_t* orginal_buffer = buffer;
     uint8_t* low_buffer = nullptr;
@@ -525,12 +577,12 @@ int emmc_read_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer)
         low_buffer = kmalloc(block_count * 512);
         if(low_buffer == nullptr){
             udbP("EMMC SD ERROR: Low buffer perform failed!");
-            return EMMC_FAIL;
+            return FAIL;
         }
         if((uint64_t)low_buffer > SIZE_1G){
             udbP("EMMC SD ERROR: Low buffer perform failed!");
             kfree(low_buffer);
-            return EMMC_FAIL;
+            return FAIL;
         }else{
             memcpy(low_buffer, buffer, block_count * 512);
             buffer = low_buffer;
@@ -550,13 +602,13 @@ int emmc_read_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer)
         if(_emmc_send_sd_command_(SD_CMD(17), block_index, true, true, true, CMD_RESP_48)){
             udbP("EMMC SD ERROR: CMD17 failed!");
             if(low_buffer != nullptr) kfree(low_buffer);
-            return EMMC_FAIL;
+            return FAIL;
         }
 
         if(!check_r1_response(*EMMC_RESPONSE0_REGISTER)){
             udbP("EMMC SD ERROR: CMD17 failed2!");
             if(low_buffer != nullptr) kfree(low_buffer);
-            return EMMC_FAIL;
+            return FAIL;
         }
 
         // wait sd card & dma
@@ -581,13 +633,13 @@ int emmc_read_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer)
                 *EMMC_ERROR_INTERRUPT_STATUS_REGISTER = 0xFFFF; // reset error irqs
                 udbP("EMMC ERROR: DMA/Single Read error!");
                 if(low_buffer != nullptr) kfree(low_buffer);
-                return EMMC_FAIL;
+                return FAIL;
             }
 
             if(tp_to_ms(get_now() - start) > 1000){
                 udbP("EMMC ERROR: DMA/Single Read irq timeout!");
                 if(low_buffer != nullptr) kfree(low_buffer);
-                return EMMC_FAIL;
+                return FAIL;
             }
         }
 
@@ -596,7 +648,7 @@ int emmc_read_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer)
             memcpy(orginal_buffer, low_buffer, block_count * 512);
             kfree(low_buffer);
         }
-        return EMMC_SUCCESS;
+        return SUCCESS;
     }else{
         // set flags
         *EMMC_TRANSFER_MODE_REGISTER = EMMC_TRANSFER_MODE_DMA_ENABLE_BIT | EMMC_TRANSFER_MODE_BLOCK_COUNT_ENABLE_BIT | EMMC_TRANSFER_MODE_READ_BIT | EMMC_TRANSFER_MODE_MULTI_BLOCK_ENABLE_BIT | EMMC_TRANSFER_MODE_AUTO_CMD12_FLAG;
@@ -605,13 +657,13 @@ int emmc_read_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer)
         if(_emmc_send_sd_command_(SD_CMD(18), block_index, true, true, true, CMD_RESP_48)){
             udbP("EMMC SD ERROR: CMD18 failed!");
             if(low_buffer != nullptr) kfree(low_buffer);
-            return EMMC_FAIL;
+            return FAIL;
         }
 
         if(!check_r1_response(*EMMC_RESPONSE0_REGISTER)){
             udbP("EMMC SD ERROR: CMD18 failed2!");
             if(low_buffer != nullptr) kfree(low_buffer);
-            return EMMC_FAIL;
+            return FAIL;
         }
 
         // wait sd card & dma
@@ -636,13 +688,13 @@ int emmc_read_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer)
                 *EMMC_ERROR_INTERRUPT_STATUS_REGISTER = 0xFFFF; // reset error irqs
                 udbP("EMMC ERROR: DMA/Multi Read error!");
                 if(low_buffer != nullptr) kfree(low_buffer);
-                return EMMC_FAIL;
+                return FAIL;
             }
 
             if(tp_to_ms(get_now() - start) > 1000){
                 udbP("EMMC ERROR: DMA/Multi Read irq timeout!");
                 if(low_buffer != nullptr) kfree(low_buffer);
-                return EMMC_FAIL;
+                return FAIL;
             }
         }
 
@@ -651,13 +703,13 @@ int emmc_read_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer)
             memcpy(orginal_buffer, low_buffer, block_count * 512);
             kfree(low_buffer);
         }
-        return EMMC_SUCCESS;
+        return SUCCESS;
     }
     if(low_buffer != nullptr) kfree(low_buffer);
-    return EMMC_FAIL;
+    return FAIL;
 }
 
-int emmc_write_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer){
+uos_result emmc_write_sd_card(uint64_t block_index, size_t block_count, uint8_t* buffer){
 
     uint8_t* orginal_buffer = buffer;
     uint8_t* low_buffer = nullptr;
@@ -668,12 +720,12 @@ int emmc_write_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer
         low_buffer = kmalloc(block_count * 512);
         if(low_buffer == nullptr){
             udbP("EMMC SD ERROR: Low buffer perform failed!");
-            return EMMC_FAIL;
+            return FAIL;
         }
         if((uint64_t)low_buffer > SIZE_1G){
             udbP("EMMC SD ERROR: Low buffer perform failed!");
             kfree(low_buffer);
-            return EMMC_FAIL;
+            return FAIL;
         }else{
             memcpy(low_buffer, buffer, block_count * 512);
             buffer = low_buffer;
@@ -693,13 +745,13 @@ int emmc_write_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer
         if(_emmc_send_sd_command_(SD_CMD(24), block_index, true, true, true, CMD_RESP_48_BUSY)){
             udbP("EMMC SD ERROR: CMD24 failed!");
             if(low_buffer != nullptr) kfree(low_buffer);
-            return EMMC_FAIL;
+            return FAIL;
         }
 
         if(!check_r1_response(*EMMC_RESPONSE0_REGISTER)){
             udbP("EMMC SD ERROR: CMD24 failed2!");
             if(low_buffer != nullptr) kfree(low_buffer);
-            return EMMC_FAIL;
+            return FAIL;
         }
 
         // wait sd card & dma
@@ -724,20 +776,20 @@ int emmc_write_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer
                 *EMMC_ERROR_INTERRUPT_STATUS_REGISTER = 0xFFFF; // reset error irqs
                 udbP("EMMC ERROR: DMA/Single Write error!");
                 if(low_buffer != nullptr) kfree(low_buffer);
-                return EMMC_FAIL;
+                return FAIL;
             }
 
             if(tp_to_ms(get_now() - start) > 1000){
                 udbP("EMMC ERROR: DMA/Single Write irq timeout!");
                 if(low_buffer != nullptr) kfree(low_buffer);
-                return EMMC_FAIL;
+                return FAIL;
             }
         }
 
         wait_r1busy();
         emmc_wait_card_transfer_state();
         if(low_buffer != nullptr) kfree(low_buffer);
-        return EMMC_SUCCESS;
+        return SUCCESS;
     }else{
         // set flags
         *EMMC_TRANSFER_MODE_REGISTER = EMMC_TRANSFER_MODE_DMA_ENABLE_BIT | EMMC_TRANSFER_MODE_BLOCK_COUNT_ENABLE_BIT | EMMC_TRANSFER_MODE_MULTI_BLOCK_ENABLE_BIT | EMMC_TRANSFER_MODE_AUTO_CMD12_FLAG;
@@ -746,13 +798,13 @@ int emmc_write_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer
         if(_emmc_send_sd_command_(SD_CMD(25), block_index, true, true, true, CMD_RESP_48_BUSY)){
             udbP("EMMC SD ERROR: CMD25 failed!");
             if(low_buffer != nullptr) kfree(low_buffer);
-            return EMMC_FAIL;
+            return FAIL;
         }
 
         if(!check_r1_response(*EMMC_RESPONSE0_REGISTER)){
             udbP("EMMC SD ERROR: CMD25 failed2!");
             if(low_buffer != nullptr) kfree(low_buffer);
-            return EMMC_FAIL;
+            return FAIL;
         }
 
         // wait sd card & dma
@@ -777,22 +829,30 @@ int emmc_write_sd_card(uint32_t block_index, size_t block_count, uint8_t* buffer
                 *EMMC_ERROR_INTERRUPT_STATUS_REGISTER = 0xFFFF; // reset error irqs
                 udbP("EMMC ERROR: DMA/Multi Write error!");
                 if(low_buffer != nullptr) kfree(low_buffer);
-                return EMMC_FAIL;
+                return FAIL;
             }
 
             if(tp_to_ms(get_now() - start) > 1000){
                 udbP("EMMC ERROR: DMA/Multi Write irq timeout!");
                 if(low_buffer != nullptr) kfree(low_buffer);
-                return EMMC_FAIL;
+                return FAIL;
             }
         }
 
         wait_r1busy();
         emmc_wait_card_transfer_state();
         if(low_buffer != nullptr) kfree(low_buffer);
-        return EMMC_SUCCESS;
+        return SUCCESS;
     }
     if(low_buffer != nullptr) kfree(low_buffer);
-    return EMMC_FAIL;
+    return FAIL;
 }
 
+size_t emmc_get_lba_count_handle(){
+    if (device_ref != UOBJECT_NOT_DEFINED)
+    {
+        return (csd.device_size / csd.max_read_data_block_length);
+    }else{
+        return 0;
+    }
+}

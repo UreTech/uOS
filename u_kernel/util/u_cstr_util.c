@@ -36,6 +36,17 @@ size_t strlen(const char *str, size_t maxSize)
 	return res;
 }
 
+size_t wstrlen(uint16_t *str, size_t maxSize){
+	size_t res = 0;
+	while (*(str + res) != '\0')
+	{
+		if (res > maxSize)
+			return 0;
+		res++;
+	}
+	return res;
+}
+
 char *ulltoa(uint64_t value, char *buf)
 {
 	char buffer[22];

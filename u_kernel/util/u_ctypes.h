@@ -23,6 +23,7 @@ typedef uint64_t size_t;
 #define NULL 0
 #define nullptr NULL
 
+#define PARTIAL_SUCCESS -2
 #define FAIL -1
 #define SUCCESS 0
 typedef int uos_result;
