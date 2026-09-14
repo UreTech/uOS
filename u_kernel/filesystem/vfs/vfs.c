@@ -250,5 +250,5 @@ void _vfs_debug_list_under_dir_(const char* dir){
 }
 
 uos_result vfs_mount_gpt_partitions(uobject_ref storage_device_obj){
-    
+    return FAIL;
 }

@@ -7,6 +7,7 @@
 #include <u_kernel/util/u_cstr_util.h>
 #include <u_kernel/timer/u_timer.h>
 #include <u_kernel/objects/uobject.h>
+#include <u_kernel/filesystem/fat/fat.h>
 
 #pragma pack(push,1) // disable alignment (maybe dangerous?)
 typedef struct
@@ -80,16 +81,16 @@ udevice_emmc_storage_function_pointers* _open_emmc_storage_device_(uobject_ref d
     uobject* storage_device_object = uobject_open_object(device_ref, UOBJECT_TYPE_DEVICE);
 
     if(storage_device_object == nullptr){
-        udbP("UFS STORAGE DEVICE ERROR: Failed to open storage device!");
+        udbP("FS STORAGE DEVICE ERROR: Failed to open storage device!");
         return nullptr;
     }
 
     udevice* storage_device = (udevice*)(storage_device_object->obj_data);
 
     if(storage_device->type != UDEVICE_TYPE_EMMC_STORAGE){
-        udbP("UFS STORAGE DEVICE ERROR: Storage device is not a emmc storage device!");
+        udbP("FS STORAGE DEVICE ERROR: Storage device is not a emmc storage device!");
         if(uobject_close_object(device_ref) == FAIL){
-            udbP("UFS STORAGE DEVICE ERROR: Failed to close storage device!");
+            udbP("FS STORAGE DEVICE ERROR: Failed to close storage device!");
             return nullptr;
         }
         return nullptr; 
@@ -340,16 +341,13 @@ uos_result _check_gpt_header_(GPT_HEADER head){
     
     head.header_crc32 = 0ULL;
     if(head_crc32 != crc32_aarch64((uint8_t*)&head, head.header_size)){
-        return PARTIAL_SUCCESS
+        return PARTIAL_SUCCESS;
     }else{
         return SUCCESS;
     }
 }
 
 uos_result get_partition_from_device(uobject_ref device_ref, partition_info* partitions, size_t max_entry_count_to_read){
-
-    partition_info result;
-    result.fs_guid_type = FS_GUID_INVALID;
 
     // open device
     udevice_emmc_storage_function_pointers* emmc = _open_emmc_storage_device_(device_ref);
@@ -367,7 +365,7 @@ uos_result get_partition_from_device(uobject_ref device_ref, partition_info* par
     GPT_HEADER* main_head = palloc(1);
     GPT_HEADER* alt_head = palloc(1);
 
-    if(emmc->common.read(1, 1, main_head) == FAIL){
+    if(emmc->common.read(1, 1, (uint8_t*)main_head) == FAIL){
         udbP("UFS GPT ERROR: Failed to read main head!");
         pfree(main_head, 1);
         pfree(alt_head, 1);
@@ -378,7 +376,7 @@ uos_result get_partition_from_device(uobject_ref device_ref, partition_info* par
     }
 
     // try to read alternative head (last lba)
-    if(emmc->common.read(total_lba_count - 1, 1, alt_head) == FAIL){
+    if(emmc->common.read(total_lba_count - 1, 1, (uint8_t*)alt_head) == FAIL){
         udbP("UFS GPT ERROR: Failed to read alternative head!");
         pfree(main_head, 1);
         pfree(alt_head, 1);
@@ -409,7 +407,7 @@ uos_result get_partition_from_device(uobject_ref device_ref, partition_info* par
                 main_head->header_crc32 = crc32_aarch64((uint8_t*)main_head, main_head->header_size);
 
                 // write
-                if(emmc->common.write(main_head->self_lba, 1, main_head) == FAIL){
+                if(emmc->common.write(main_head->self_lba, 1, (uint8_t*)main_head) == FAIL){
                     udbP("UFS GPT ERROR: Failed to write repaired main head!");
                     pfree(main_head, 1);
                     pfree(alt_head, 1);
@@ -433,7 +431,7 @@ uos_result get_partition_from_device(uobject_ref device_ref, partition_info* par
                 alt_head->header_crc32 = crc32_aarch64((uint8_t*)alt_head, alt_head->header_size);
 
                 // write
-                if(emmc->common.write(alt_head->self_lba, 1, alt_head) == FAIL){
+                if(emmc->common.write(alt_head->self_lba, 1, (uint8_t*)alt_head) == FAIL){
                     udbP("UFS GPT ERROR: Failed to write repaired alternative head!");
                     pfree(main_head, 1);
                     pfree(alt_head, 1);
@@ -452,7 +450,7 @@ uos_result get_partition_from_device(uobject_ref device_ref, partition_info* par
     GPT_PARTITION_ENTRY* entry_array = kmalloc(total_array_size); // main
     GPT_PARTITION_ENTRY* alt_entry_array = kmalloc(total_array_size);
 
-    if(emmc->common.read(main_head->partition_entry_lba, ((total_array_size + 511) / lba_size), entry_array) == FAIL){
+    if(emmc->common.read(main_head->partition_entry_lba, ((total_array_size + 511) / lba_size), (uint8_t*)entry_array) == FAIL){
         udbP("UFS GPT ERROR: Failed to read main entry array!");
         pfree(main_head, 1);
         pfree(alt_head, 1);
@@ -464,7 +462,7 @@ uos_result get_partition_from_device(uobject_ref device_ref, partition_info* par
         return FAIL;
     }
 
-    if(emmc->common.read(alt_head->partition_entry_lba, ((total_array_size + 511) / lba_size), alt_entry_array) == FAIL){
+    if(emmc->common.read(alt_head->partition_entry_lba, ((total_array_size + 511) / lba_size), (uint8_t*)alt_entry_array) == FAIL){
         udbP("UFS GPT ERROR: Failed to read alternative entry array!");
         pfree(main_head, 1);
         pfree(alt_head, 1);
@@ -499,7 +497,7 @@ uos_result get_partition_from_device(uobject_ref device_ref, partition_info* par
             // repair main
             // write to main
             memcpy(entry_array, alt_entry_array, total_array_size);
-            if(emmc->common.write(main_head->partition_entry_lba, ((total_array_size + 511) / lba_size), entry_array) == FAIL){
+            if(emmc->common.write(main_head->partition_entry_lba, ((total_array_size + 511) / lba_size), (uint8_t*)entry_array) == FAIL){
                 udbP("UFS GPT ERROR: Failed to write repair to main entry array!");
                 pfree(main_head, 1);
                 pfree(alt_head, 1);
@@ -520,7 +518,7 @@ uos_result get_partition_from_device(uobject_ref device_ref, partition_info* par
                 // repair alternative
                 // write to alternative
                 memcpy(alt_entry_array, entry_array, total_array_size);
-                if(emmc->common.write(alt_head->partition_entry_lba, ((total_array_size + 511) / lba_size), alt_entry_array) == FAIL){
+                if(emmc->common.write(alt_head->partition_entry_lba, ((total_array_size + 511) / lba_size), (uint8_t*)alt_entry_array) == FAIL){
                     udbP("UFS GPT ERROR: Failed to write repair to main entry array!");
                     pfree(main_head, 1);
                     pfree(alt_head, 1);
@@ -558,3 +556,43 @@ uos_result get_partition_from_device(uobject_ref device_ref, partition_info* par
 
     return SUCCESS;
 }
+
+uos_result try_mount_partition(uobject_ref device_ref, partition_info partition){
+    // try to detect the type of the partition
+
+    // try FAT32
+    if(check_fat32_partition(partition, device_ref) == SUCCESS){
+
+    }// check UFS here...
+    
+    return FAIL;
+}
+
+uint64_t mount_all_partitions(uobject_ref device_ref){
+    partition_info* partitions = kmalloc(sizeof(partition_info) * 128);
+    memset(partitions, 0ULL, sizeof(partition_info) * 128);
+
+    if(get_partition_from_device(device_ref, partitions, 128) != SUCCESS){
+        udbP("UFS GPT ERROR: Failed to read partitions!");
+        return 0;
+    }
+
+    uint64_t mounted_partition_count = 0;
+
+    for (size_t i = 0; i < 128; i++)
+    {
+        if(partitions[i].start_lba == 0){
+            // last
+            break;
+        }else{
+            if(try_mount_partition(device_ref, partitions[i]) != SUCCESS){
+                udbP("UFS GPT WARN: Failed to mount a partition!");
+            }else{
+                mounted_partition_count++;
+            }
+        }
+    }
+
+    return mounted_partition_count;
+}
+

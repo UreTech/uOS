@@ -139,11 +139,15 @@ void main()
 	if(emmc_init_sd_card() == SUCCESS){
 		uart_print("SD init successful!\n");
 		uobject_ref emmc_storage_device = vfs_get_device_ref("/devices/storage/emmc0");
+
+		
+
 		if(format_sd_gpt_with_pre_partitions(emmc_storage_device) == UFS_SUCCESS){
 			uart_print("GPT partitions created!\n");
 		}else{
 			uart_print("GPT partition creation failed!\n");
 		}
+
 	}else{
 		uart_print("SD init failed!\n");
 	}

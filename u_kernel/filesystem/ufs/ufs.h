@@ -27,5 +27,9 @@ uos_result get_partition_from_device(uobject_ref device_ref, partition_info* par
 
 udevice_emmc_storage_function_pointers* _open_emmc_storage_device_(uobject_ref device_ref);
 
+uos_result try_mount_partition(uobject_ref device_ref, partition_info partition);
+
+uint64_t mount_all_partitions(uobject_ref device_ref);
+
 
 #endif

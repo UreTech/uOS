@@ -1,0 +1,14 @@
+"filename", "language", "C", "Linker Map file", "C++", "comment", "blank", "total"
+"/mnt/common_disk/vsProjects/uOS_new/build/kernel.map", "Linker Map file", 0, 1, 0, 0, 0, 1
+"/mnt/common_disk/vsProjects/uOS_new/kernel.c", "C", -3, 0, 0, -28, 0, -31
+"/mnt/common_disk/vsProjects/uOS_new/u_kernel/filesystem/ufs/ufs.c", "C", 192, 0, 0, 26, 39, 257
+"/mnt/common_disk/vsProjects/uOS_new/u_kernel/filesystem/ufs/ufs.h", "C++", 0, 0, 12, 0, 5, 17
+"/mnt/common_disk/vsProjects/uOS_new/u_kernel/filesystem/vfs/vfs.c", "C", 8, 0, 0, -1, 7, 14
+"/mnt/common_disk/vsProjects/uOS_new/u_kernel/filesystem/vfs/vfs.h", "C++", 0, 0, 1, 0, 1, 2
+"/mnt/common_disk/vsProjects/uOS_new/u_kernel/objects/fsi/fsi.c", "C", 0, 0, 0, 0, 1, 1
+"/mnt/common_disk/vsProjects/uOS_new/u_kernel/objects/fsi/fsi.h", "C++", 0, 0, 20, 0, 6, 26
+"/mnt/common_disk/vsProjects/uOS_new/u_kernel/objects/uobject.h", "C++", 0, 0, 0, -1, 0, -1
+"/mnt/common_disk/vsProjects/uOS_new/u_kernel/util/u_cstr_util.c", "C", 10, 0, 0, 0, 1, 11
+"/mnt/common_disk/vsProjects/uOS_new/u_kernel/util/u_cstr_util.h", "C", 1, 0, 0, 0, 1, 2
+"/mnt/common_disk/vsProjects/uOS_new/u_kernel/util/u_ctypes.h", "C", 1, 0, 0, 0, 0, 1
+"Total", "-", 209, 1, 33, -4, 61, 300

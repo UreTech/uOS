@@ -31,3 +31,4 @@ void memcpy(void *dst, void *src, size_t size);
 void memset(void *dst, uint8_t val, size_t size);
 void memfill(volatile void *ptr, void *filler, size_t fSize, size_t times);
 int memcmp(void *src1, void *src2, size_t len);
+#define RAW_MOVE(dst, src) memcpy(&dst, &src, sizeof(src)); // this macro prevents alignment faults on weird structs

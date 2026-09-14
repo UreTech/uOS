@@ -1,0 +1,48 @@
+Date : 2026-08-18 22:35:06
+Directory : /mnt/common_disk/vsProjects/uOS_new
+Total : 12 files,  243 codes, -4 comments, 61 blanks, all 300 lines
+
+Languages
++-----------------+------------+------------+------------+------------+------------+
+| language        | files      | code       | comment    | blank      | total      |
++-----------------+------------+------------+------------+------------+------------+
+| C               |          7 |        209 |         -3 |         49 |        255 |
+| C++             |          4 |         33 |         -1 |         12 |         44 |
+| Linker Map file |          1 |          1 |          0 |          0 |          1 |
++-----------------+------------+------------+------------+------------+------------+
+
+Directories
++-------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                              | files      | code       | comment    | blank      | total      |
++-------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                 |         12 |        243 |         -4 |         61 |        300 |
+| . (Files)                                                         |          1 |         -3 |        -28 |          0 |        -31 |
+| build                                                             |          1 |          1 |          0 |          0 |          1 |
+| u_kernel                                                          |         10 |        245 |         24 |         61 |        330 |
+| u_kernel/filesystem                                               |          4 |        213 |         25 |         52 |        290 |
+| u_kernel/filesystem/ufs                                           |          2 |        204 |         26 |         44 |        274 |
+| u_kernel/filesystem/vfs                                           |          2 |          9 |         -1 |          8 |         16 |
+| u_kernel/objects                                                  |          3 |         20 |         -1 |          7 |         26 |
+| u_kernel/objects (Files)                                          |          1 |          0 |         -1 |          0 |         -1 |
+| u_kernel/objects/fsi                                              |          2 |         20 |          0 |          7 |         27 |
+| u_kernel/util                                                     |          3 |         12 |          0 |          2 |         14 |
++-------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++-------------------------------------------------------------------+-----------------+------------+------------+------------+------------+
+| filename                                                          | language        | code       | comment    | blank      | total      |
++-------------------------------------------------------------------+-----------------+------------+------------+------------+------------+
+| /mnt/common_disk/vsProjects/uOS_new/build/kernel.map              | Linker Map file |          1 |          0 |          0 |          1 |
+| /mnt/common_disk/vsProjects/uOS_new/kernel.c                      | C               |         -3 |        -28 |          0 |        -31 |
+| /mnt/common_disk/vsProjects/uOS_new/u_kernel/filesystem/ufs/ufs.c | C               |        192 |         26 |         39 |        257 |
+| /mnt/common_disk/vsProjects/uOS_new/u_kernel/filesystem/ufs/ufs.h | C++             |         12 |          0 |          5 |         17 |
+| /mnt/common_disk/vsProjects/uOS_new/u_kernel/filesystem/vfs/vfs.c | C               |          8 |         -1 |          7 |         14 |
+| /mnt/common_disk/vsProjects/uOS_new/u_kernel/filesystem/vfs/vfs.h | C++             |          1 |          0 |          1 |          2 |
+| /mnt/common_disk/vsProjects/uOS_new/u_kernel/objects/fsi/fsi.c    | C               |          0 |          0 |          1 |          1 |
+| /mnt/common_disk/vsProjects/uOS_new/u_kernel/objects/fsi/fsi.h    | C++             |         20 |          0 |          6 |         26 |
+| /mnt/common_disk/vsProjects/uOS_new/u_kernel/objects/uobject.h    | C++             |          0 |         -1 |          0 |         -1 |
+| /mnt/common_disk/vsProjects/uOS_new/u_kernel/util/u_cstr_util.c   | C               |         10 |          0 |          1 |         11 |
+| /mnt/common_disk/vsProjects/uOS_new/u_kernel/util/u_cstr_util.h   | C               |          1 |          0 |          1 |          2 |
+| /mnt/common_disk/vsProjects/uOS_new/u_kernel/util/u_ctypes.h      | C               |          1 |          0 |          0 |          1 |
+| Total                                                             |                 |        243 |         -4 |         61 |        300 |
++-------------------------------------------------------------------+-----------------+------------+------------+------------+------------+
