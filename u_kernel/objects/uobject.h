@@ -33,9 +33,9 @@ typedef struct{
     uint64_t ref_count; // count of referances for garbage collection
     char name[48]; // object name
     uint8_t padding[8];
-    uint8_t obj_data[256 - (32 + 48 + 8 + 8)]; // object specific data (16 byte aligned)
+    uint8_t obj_data[512 - (32 + 48 + 8 + 8)]; // object specific data (16 byte aligned)
 }uobject;
-#define UOBJECT_MAX_DATA_SIZE (160ULL)
+#define UOBJECT_MAX_DATA_SIZE (416ULL)
 
 typedef uint64_t uobject_ref;
 
@@ -52,5 +52,10 @@ uobject_ref uobject_create_fsi(const char* name, uint64_t flags, u_fs_interface 
 uobject* uobject_open_object(uobject_ref ref, uint64_t object_type);
 
 uos_result uobject_close_object(uobject_ref ref);
+
+// util
+udevice_emmc_storage_function_pointers* _open_emmc_storage_device_(uobject_ref device_ref);
+
+u_fs_interface* _open_filesystem_interface_(uobject_ref device_ref);
 
 #endif

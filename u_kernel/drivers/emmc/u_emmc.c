@@ -195,9 +195,11 @@ int _emmc_send_sd_command_(uint8_t command_index, uint32_t argument, bool data_p
             }else{
                 // other failure
                 udbP("EMMC ERROR: Command irq soft error!");
-                uart_print("ERROR IRQ: ");
-                uart_print_hex32(*EMMC_ERROR_INTERRUPT_STATUS_REGISTER);
-                uart_print("\n");
+                udbPs();
+                udbP_STR("ERROR IRQ: ");
+                udbP_HEX(*EMMC_ERROR_INTERRUPT_STATUS_REGISTER);
+                udbPe();
+
                 *EMMC_ERROR_INTERRUPT_STATUS_REGISTER = ~(0x0); // clear all irq's
                 return -1;
             }
@@ -206,9 +208,10 @@ int _emmc_send_sd_command_(uint8_t command_index, uint32_t argument, bool data_p
         if(tp_to_ms(get_now() - start) > 2500){
             udbP("EMMC ERROR: Command irq hard timeout!");
 
-            uart_print("ERROR IRQ: ");
-            uart_print_hex32(*EMMC_ERROR_INTERRUPT_STATUS_REGISTER);
-            uart_print("\n");
+            udbPs();
+            udbP_STR("ERROR IRQ: ");
+            udbP_HEX(*EMMC_ERROR_INTERRUPT_STATUS_REGISTER);
+            udbPe();
 
             return -1;
         }
@@ -239,9 +242,10 @@ bool check_r1_response(uint32_t r0){
                           CARD_STATUS_CARD_ECC_FAILED | CARD_STATUS_CC_ERROR |
                           CARD_STATUS_ERROR;
     if(r0 & error_mask){
-        uart_print("EMMC ERROR: Card status = 0x");
-        uart_print_hex64(r0);
-        uart_print("\n");
+        udbPs();
+        udbP_STR("EMMC ERROR: Card status = 0x");
+        udbP_HEX(r0);
+        udbPe();
         return false;
     }
     return true;
@@ -430,9 +434,11 @@ uos_result emmc_init_sd_card(){
                 udbP("EMMC INFO: Low capacity card.");
             }
 
-            uart_print("EMMC Card wake up in ");
-            uart_print_dec(tp_to_ms(get_now() - start));
-            uart_print("ms\n");
+            udbPs();
+            udbP_STR("EMMC Card wake up in ");
+            udbP_DEC(tp_to_ms(get_now() - start));
+            udbP_STR("ms");
+            udbPe();
 
             break; // success exit the loop
         }
@@ -467,11 +473,13 @@ uos_result emmc_init_sd_card(){
     // parse cid
     cid = _SD_CID_PARSER_(cid_bytes);
 
+    /*
     uart_print("CID oem id: ");
     uart_print(cid.oem_id);
     uart_print("\nCID Product Name: ");
     uart_print(cid.product_name);
     uart_print("\n");
+    */
 
     // get RCA
     if(_emmc_send_sd_command_(SD_CMD(3), 0x0, false, true, true, CMD_RESP_48)){
@@ -508,6 +516,7 @@ uos_result emmc_init_sd_card(){
         return FAIL;
     }else if(csd.csd_version != 3){
         udbP("EMMC INFO: SDHC/SDXC card detected.")
+        /*
         uart_print("CSD version: ");
         uart_print_dec(csd.csd_version + 1);
         uart_print("\nCard block size: ");
@@ -515,6 +524,7 @@ uos_result emmc_init_sd_card(){
         uart_print("\n Card size: ");
         uart_print_dec(csd.device_size);
         uart_print("bytes\n");
+        */
     }else{
         udbP("EMMC ERROR: CSD version is invalid!")
         return FAIL;

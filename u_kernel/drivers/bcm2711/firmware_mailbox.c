@@ -1,6 +1,6 @@
-#include <arm/firmware_mailbox.h>
-#include <memory/u_memory.h>
-#include <u_timer.h>
+#include <u_kernel/drivers/bcm2711/firmware_mailbox.h>
+#include <u_kernel/memory/u_memory.h>
+#include <u_kernel/timer/u_timer.h>
 uint32_t firmware_mailbox_call(uint32_t* buffer, size_t length, uint8_t channel){
 
     if(length > (64 * 4)){

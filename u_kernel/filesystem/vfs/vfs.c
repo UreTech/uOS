@@ -1,5 +1,6 @@
 #include <u_kernel/filesystem/vfs/vfs.h>
 #include <u_kernel/util/u_cstr_util.h>
+#include <u_kernel/util/u_ctypes.h>
 
 vfs_entry root;
 
@@ -79,8 +80,7 @@ vfs_entry* vfs_find_entry(const char* path){
 }
 
 // filesystem endpoint
-typedef struct filesystem_call_info
-{
+typedef struct{
     vfs_entry* fsi_file;
     char* call_path;
 }filesystem_call_info;
@@ -90,7 +90,7 @@ filesystem_call_info vfs_find_fsi_child(vfs_entry* parent, const char* name){
     result.call_path = nullptr;
     result.fsi_file = nullptr;
     if(parent->type == VFS_TYPE_FS_PARTITION){
-        result.call_path = name;
+        result.call_path = (char*)name;
         result.fsi_file = parent;
         return result;
     }else if(parent->type != VFS_TYPE_DIRECTORY){
@@ -163,7 +163,7 @@ filesystem_call_info vfs_find_fsi_entry(const char* path){
                 }
                 result.fsi_file = current;
                 result.call_path = nullptr;
-                return current;
+                return result;
             }
         }
         
@@ -171,7 +171,9 @@ filesystem_call_info vfs_find_fsi_entry(const char* path){
 
     udbP("VFS ERROR: Should not reach here:");
     udbP(path);
-    return nullptr;
+    result.fsi_file = nullptr;
+    result.call_path = nullptr;
+    return result;
 }
 
 vfs_entry* vfs_add_entry(const char* dir_path, vfs_entry entry){
@@ -341,9 +343,10 @@ void _vfs_debug_list_under_dir_(const char* dir){
         return;
     }
 
-    uart_print("dir: ");
-    uart_print(dir);
-    uart_print("\n");
+    udbPs();
+    udbP_STR("dir: ");
+    udbP_STR(dir);
+    udbPe();
 
     vfs_entry* looking_table = ent->dir_table;
     while (looking_table != nullptr)
@@ -351,11 +354,12 @@ void _vfs_debug_list_under_dir_(const char* dir){
         for (size_t j = 0; j < VFS_ENTRY_COUNT_PER_PAGE - 1; j++)
         {
             if(looking_table[j].type != VFS_TYPE_EMPTY){
-                uart_print("\"");
-                uart_print(looking_table[j].name);
-                uart_print("\" type: ");
-                uart_print_dec(looking_table[j].type);
-                uart_print("\n");
+                udbPs();
+                udbP_STR("\"");
+                udbP_STR(looking_table[j].name);
+                udbP_STR("\" type: ");
+                udbP_DEC(looking_table[j].type);
+                udbPe();
             }
         }
 
@@ -424,15 +428,16 @@ uos_result delete_file(const char* file_path){
 
 u_fs_file_info read_file_info(const char* file_path){
     filesystem_call_info call_info = vfs_find_fsi_entry(file_path);
+    u_fs_file_info empty;
     if(call_info.call_path == nullptr || call_info.fsi_file == nullptr){
         udbP("VFS FSI ERROR: Filesystem not found!");
-        return FAIL;
+        return empty;
     }
 
     u_fs_interface* fs = _open_filesystem_interface_(call_info.fsi_file->obj_ref);
     if(fs == nullptr){
         udbP("VFS FSI ERROR: Failed to open filesystem interface!");
-        return FAIL;
+        return empty;
     }
 
     return fs->read_file_info(fs, call_info.call_path);

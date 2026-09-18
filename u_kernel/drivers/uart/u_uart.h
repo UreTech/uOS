@@ -22,6 +22,18 @@
 	uart_print(msg);  \
 	uart_print("\n");
 
+#define udbPs()                 \
+	uart_print("@");          \
+	uart_print(__FILE__);     \
+	uart_print(":");          \
+	uart_print_dec(__LINE__); \
+	uart_print("#[UDBridge]: ");
+
+#define udbP_HEX(u64_hex) uart_print("0x"); uart_print_hex64(u64_hex);
+#define udbP_DEC(u64_dec) uart_print_dec(u64_dec);
+#define udbP_STR(str) uart_print(str);
+#define udbPe() uart_print("\n");
+
 
 static inline uint64_t read_pc()
 {

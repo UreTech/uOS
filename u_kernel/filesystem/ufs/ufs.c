@@ -77,28 +77,6 @@ void utf16_to_char_buf(uint16_t* _wchar, char* _char){
     }
 }
 
-udevice_emmc_storage_function_pointers* _open_emmc_storage_device_(uobject_ref device_ref){
-    uobject* storage_device_object = uobject_open_object(device_ref, UOBJECT_TYPE_DEVICE);
-
-    if(storage_device_object == nullptr){
-        udbP("FS STORAGE DEVICE ERROR: Failed to open storage device!");
-        return nullptr;
-    }
-
-    udevice* storage_device = (udevice*)(storage_device_object->obj_data);
-
-    if(storage_device->type != UDEVICE_TYPE_EMMC_STORAGE){
-        udbP("FS STORAGE DEVICE ERROR: Storage device is not a emmc storage device!");
-        if(uobject_close_object(device_ref) == FAIL){
-            udbP("FS STORAGE DEVICE ERROR: Failed to close storage device!");
-            return nullptr;
-        }
-        return nullptr; 
-    }
-
-    return (udevice_emmc_storage_function_pointers*)(storage_device->symbols);
-}
-
 uos_result format_sd_gpt_with_pre_partitions(uobject_ref device_ref){
 
     udevice_emmc_storage_function_pointers* emmc = _open_emmc_storage_device_(device_ref);
@@ -562,7 +540,7 @@ uos_result try_mount_partition(uobject_ref device_ref, partition_info partition)
 
     // try FAT32
     if(check_fat32_partition(partition, device_ref) == SUCCESS){
-
+        return mount_fat32_partition(partition, device_ref);
     }// check UFS here...
     
     return FAIL;

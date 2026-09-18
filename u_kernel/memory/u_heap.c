@@ -1,4 +1,4 @@
-#include <memory/u_heap.h>
+#include <u_kernel/memory/u_heap.h>
 
 uint64_t slab_size_table[] = {
 	4,

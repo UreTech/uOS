@@ -2,6 +2,49 @@
 #include <u_kernel/memory/u_memory.h>
 #include <u_kernel/util/random/u_rand.h>
 #include <u_kernel/util/util.h>
+#include <u_kernel/filesystem/vfs/vfs.h>
+
+// os driver instance handling
+typedef struct fat32_instance
+{
+    uobject_ref storage_device;
+    partition_info partition;
+    fat32_bpb bpb;
+    fat32_FSInfo FSInfo;
+
+    uint64_t fat1_first_lba;
+    uint64_t fat2_first_lba;
+    uint32_t data_first_lba;
+
+    struct fat32_instance* next;
+} fat32_instance;
+
+fat32_instance* instances = nullptr;
+
+void fat32_create_new_instance(fat32_instance* instance_info){
+    fat32_instance* current = instances;
+
+    if(current != nullptr){
+        // find end of chain
+        while(current->next != nullptr){
+            current = current->next;
+        }
+
+        current->next = (fat32_instance*)kmalloc(sizeof(fat32_instance));
+        current = current->next;
+        memcpy(current, instance_info, sizeof(fat32_instance));
+        current->next = nullptr;
+        return;
+
+    }else{
+        current = (fat32_instance*)kmalloc(sizeof(fat32_instance));
+        memcpy(current, instance_info, sizeof(fat32_instance));
+        current->next = nullptr;
+        return;
+    }
+}
+
+// driver
 
 uos_result check_fat32_partition(partition_info partition, uobject_ref storage_device){
     udevice_emmc_storage_function_pointers* emmc =  _open_emmc_storage_device_(storage_device);
@@ -29,16 +72,16 @@ uos_result check_fat32_partition(partition_info partition, uobject_ref storage_d
     else if(bpb->BPB_FSVer != 0ULL){
         check = FAIL;
     }
-    else if(bpb->bytes_per_sector != 512ULL){
+    else if(read_uint16_alignment_safe(&(bpb->bytes_per_sector)) != 512ULL){
         check = FAIL;
     }
-    else if(bpb->rootEntCount != 0){
+    else if(read_uint16_alignment_safe(&(bpb->rootEntCount)) != 0){
         check = FAIL;
     }
-    else if(bpb->totSec16 != 0){
+    else if(read_uint16_alignment_safe(&(bpb->totSec16)) != 0){
         check = FAIL;
     }
-    else if(bpb->BPB_FATSz16 != 0){
+    else if(read_uint16_alignment_safe(&(bpb->BPB_FATSz16)) != 0){
         check = FAIL;
     }
     else if(bpb->BPB_FATSz32 == 0){
@@ -226,6 +269,100 @@ uos_result create_fat32_partition(partition_info partition, uobject_ref storage_
     return SUCCESS;
 }
 
-uos_result mount_fat32_partition(partition_info partition, uobject_ref storage_device){
+#define FAT32_ATTR_READ_ONLY_BIT ONEBIT(0)
+#define FAT32_ATTR_HIDDEN_BIT ONEBIT(1)
+#define FAT32_ATTR_SYSTEM_BIT ONEBIT(2)
+#define FAT32_ATTR_VOLUME_ID_BIT ONEBIT(3)
+#define FAT32_ATTR_DIRECTORY_BIT ONEBIT(4)
+#define FAT32_ATTR_ARCHIVE_BIT ONEBIT(5)
+#define FAT32_ATTR_LONG_FILE_NAME (0x0F)
+
+typedef struct
+{
+    char DIR_Name[11]; // SFN
+    uint8_t DIR_Attr;
+    uint8_t DIR_NTRes; // not used (0)
+
+    // time is not present so set to 0
+    uint8_t DIR_CrtTimeTenth;
+    uint16_t DIR_CrtTime;
+    uint16_t DIR_CrtDate;
+    uint16_t DIR_LstAccDate;
+    uint16_t DIR_FstClusHI; // used in fat32
+    uint16_t DIR_WrtTime;
+    uint16_t DIR_WrtDate;
+
+    uint16_t DIR_FstClusLO;
+    uint32_t DIR_FileSize;
+} __attribute__((packed)) fat32_dir_entry;
+_Static_assert(sizeof(fat32_dir_entry) == 32, "fat32_dir_entry must be 32 bytes");
+
+
+uos_result fat32_create_file(u_fs_interface* interface, const char* parent, const char* file_name){
+
+
+    return SUCCESS;
+}
+
+uos_result fat32_create_dir(u_fs_interface* interface, const char* parent, const char* dir_name){
+
     
+    return SUCCESS;
+}
+
+uos_result mount_fat32_partition(partition_info partition, uobject_ref storage_device){
+    udevice_emmc_storage_function_pointers* emmc =  _open_emmc_storage_device_(storage_device);
+
+    if(emmc == nullptr){
+        return FAIL;
+    }
+
+    fat32_instance inst;
+
+    inst.storage_device = storage_device;
+    inst.partition = partition;
+
+    if(emmc->common.read(partition.start_lba + 0, 1, (uint8_t*)(&inst.bpb)) == FAIL){
+        udbP("FAT ERROR: Failed to read FAT header!");
+        if(uobject_close_object(storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        return FAIL;
+    }
+
+    if(emmc->common.read(partition.start_lba + inst.bpb.BPB_FSInfo, 1, (uint8_t*)(&inst.FSInfo)) == FAIL){
+        udbP("FAT ERROR: Failed to read FSInfo header!");
+        if(uobject_close_object(storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        return FAIL;
+    }
+
+    inst.fat1_first_lba = partition.start_lba + inst.bpb.reserved_sector_count;
+    inst.fat2_first_lba = inst.fat1_first_lba + inst.bpb.BPB_FATSz32;
+    inst.data_first_lba = inst.fat2_first_lba + inst.bpb.BPB_FATSz32;
+
+    fat32_create_new_instance(&inst);
+
+    if(uobject_close_object(storage_device) == FAIL){
+        udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        return FAIL;
+    }
+
+    u_fs_interface fat32_fsi;
+    memcpy(fat32_fsi.fs_type_name, "FAT32", 6);
+    fat32_fsi.storage_device = storage_device;
+    memcpy(&fat32_fsi.partition, &partition, sizeof(partition_info));
+
+    // set functions
+    fat32_fsi.create = fat32_create_file;
+
+    uobject_ref obj = uobject_create_fsi(partition.name, 0, fat32_fsi);
+    if(obj == UOBJECT_NOT_DEFINED){
+        udbP("FAT UOBJECT ERROR: Failed to create filesystem interface UOBJECT!");
+        return FAIL;
+    }
+
+    return vfs_create_object_file("/mounts/", partition.name, obj, VFS_TYPE_FS_PARTITION, 0);
+    return SUCCESS;
 }

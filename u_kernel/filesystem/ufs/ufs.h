@@ -3,6 +3,8 @@
 
 #include <u_kernel/util/u_ctypes.h>
 #include <u_kernel/objects/uobject.h>
+typedef uint64_t uobject_ref;
+
 #define UFS_FAIL FAIL
 #define UFS_SUCCESS SUCCESS
 
@@ -16,16 +18,7 @@
 
 uos_result format_sd_gpt_with_pre_partitions(uobject_ref device_ref);
 
-typedef struct
-{
-    uint64_t start_lba;
-    size_t lba_count;
-    char name[48];
-}partition_info;
-
 uos_result get_partition_from_device(uobject_ref device_ref, partition_info* partitions, size_t max_entry_count_to_read);
-
-udevice_emmc_storage_function_pointers* _open_emmc_storage_device_(uobject_ref device_ref);
 
 uos_result try_mount_partition(uobject_ref device_ref, partition_info partition);
 

@@ -1,4 +1,4 @@
-#include <memory/u_mempage.h>
+#include <u_kernel/memory/u_mempage.h>
 
 UMP_MREGION_HEADER *mmr_header = NULL;
 
@@ -29,13 +29,15 @@ void ump_allocator_init_mem()
 
 	mmr_header->DP_page_count = mmr_header->total_page_count - mmr_header->FPT_page_count - 1;
 
-	uart_print("FPT page count: ");
-	uart_print_dec(mmr_header->FPT_page_count);
-	uart_print("\n");
-
-	uart_print("DP count: ");
-	uart_print_dec(mmr_header->DP_page_count);
-	uart_print("\n");
+	udbPs();
+	udbP_STR("FPT page count: ");
+	udbP_DEC(mmr_header->FPT_page_count);
+	udbPe();
+	
+	udbPs();
+	udbP_STR("DP count: ");
+	udbP_DEC(mmr_header->DP_page_count);
+	udbPe();
 
 	// set start of Free Page Table
 	mmr_header->FPT = (uint8_t *)mem + sizeof(onepage);
@@ -80,13 +82,15 @@ void ump_allocator_init_vmem()
 
 	vmmr_header->DP_page_count = vmmr_header->total_page_count - vmmr_header->FPT_page_count - 1;
 
-	uart_print("vFPT page count: ");
-	uart_print_dec(vmmr_header->FPT_page_count);
-	uart_print("\n");
+	udbPs();
+	udbP_STR("vFPT page count: ");
+	udbP_DEC(vmmr_header->FPT_page_count);
+	udbPe();
 
-	uart_print("vDP count: ");
-	uart_print_dec(vmmr_header->DP_page_count);
-	uart_print("\n");
+	udbPs();
+	udbP_STR("vDP count: ");
+	udbP_DEC(vmmr_header->DP_page_count);
+	udbPe();
 
 	// set start of Free Page Table
 	vmmr_header->FPT = (uint8_t *)vmem + sizeof(onepage);

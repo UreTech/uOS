@@ -153,6 +153,8 @@ void main()
 		udbP("SD init failed!");
 	}
 
+	_vfs_debug_list_under_dir_("/mounts/");
+
 	udbP("dead end. standby...");
 	while(true);
 

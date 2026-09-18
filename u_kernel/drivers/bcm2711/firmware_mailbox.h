@@ -1,7 +1,7 @@
 #ifndef FIRMWARE_MAILBOX_H
 #define FIRMWARE_MAILBOX_H
 
-#include <u_ctypes.h>
+#include <u_kernel/util/u_ctypes.h>
 
 #define VIDEOCORE_MAILBOX_BASE (0xFE00B880)
 #define VIDEOCORE_MAILBOX_READ ((volatile uint32_t *)(VIDEOCORE_MAILBOX_BASE + 0x0))

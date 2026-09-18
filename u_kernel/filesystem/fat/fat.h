@@ -65,5 +65,4 @@ uos_result create_fat32_partition(partition_info partition, uobject_ref storage_
 
 uos_result mount_fat32_partition(partition_info partition, uobject_ref storage_device);
 
-
 #endif

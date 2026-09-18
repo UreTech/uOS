@@ -1,5 +1,5 @@
-#include <memory/u_memory.h>
-#include <u_SuperRH.h>
+#include <u_kernel/memory/u_memory.h>
+#include <u_kernel/framework/SupervisorRequestHandler/u_SuperRH.h>
 
 UHP_CONTEXT base_kernel_heap_context;
 UHP_CONTEXT base_kernel_vheap_context;
