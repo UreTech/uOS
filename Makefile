@@ -21,7 +21,7 @@ uOSkernel8.img: boot.o $(OFILES)
 	"aarch64-none-elf-objcopy" -O binary build/uOSkernel8.elf build/uOSkernel8.img
 
 clean:
-	rm -f *.o build/uOSkernel8.elf build/uOSkernel8.img
+	find . -type f -name '*.o' -delete && rm -f build/uOSkernel8.elf build/uOSkernel8.img
 else ifeq ($(UNAME_S),Darwin)
     GCCPATH = "not set"
 else ifeq ($(OS),Windows_NT)
