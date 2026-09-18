@@ -31,5 +31,4 @@ uos_result try_mount_partition(uobject_ref device_ref, partition_info partition)
 
 uint64_t mount_all_partitions(uobject_ref device_ref);
 
-
 #endif

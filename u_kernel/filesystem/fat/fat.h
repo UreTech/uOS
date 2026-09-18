@@ -42,13 +42,28 @@ typedef struct
 } __attribute__((packed)) fat32_bpb;
 _Static_assert(sizeof(fat32_bpb) == 512, "fat32_bpb must be 512 bytes");
 
+//FSInfo struct
+typedef struct
+{
+    uint32_t FSI_LeadSig; // 0x41615252
+    uint8_t FSI_Reserved1[480];
+    uint32_t FSI_StrucSig; // 0x61417272
+    uint32_t FSI_Free_Count; // last known free cluster count (0xFFFFFFFF = unknown)
+    uint32_t FSI_Nxt_Free; // last known next free cluster (0xFFFFFFFF = unknown)
+    uint8_t FSI_Reserved2[12];
+    uint32_t FSI_TrailSig; // 0xAA550000
+} __attribute__((packed)) fat32_FSInfo;
+_Static_assert(sizeof(fat32_FSInfo) == 512, "fat32_FSInfo must be 512 bytes");
+#define FAT32_FSINFO_UNKNOWN (0xFFFFFFFF)
+
 // returns FAIL if head is not found
 // returns SUCCESS if head found
 // also repairs head if any repairable corruption detected
 uos_result check_fat32_partition(partition_info partition, uobject_ref storage_device);
 
-// calculates BPB_FATSz32
-uint64_t fatgen103(size_t partition_lba_count, uint16_t reserved_sector_count, uint8_t sector_per_cluster, uint8_t num_of_fats);
+uos_result create_fat32_partition(partition_info partition, uobject_ref storage_device);
+
+uos_result mount_fat32_partition(partition_info partition, uobject_ref storage_device);
 
 
 #endif

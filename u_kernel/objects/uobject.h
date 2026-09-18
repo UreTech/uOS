@@ -4,6 +4,7 @@
 #include <u_kernel/util/u_ctypes.h>
 #include <u_kernel/util/lock/u_mutex.h>
 #include <u_kernel/objects/udevice/udevice.h>
+#include <u_kernel/objects/fsi/fsi.h>
 
 #define UOBJECT_MAXIMUM_OBJECT_COUNT (2048ULL)
 #define UOBJECT_NOT_DEFINED (0xDEADBEEFULL)
@@ -46,9 +47,10 @@ uobject_ref uobject_create_custom(const char* name, uint64_t flags, uint8_t* dat
 
 uobject_ref uobject_create_udevice(const char* name, uint64_t flags, udevice device_header);
 
+uobject_ref uobject_create_fsi(const char* name, uint64_t flags, u_fs_interface fs_interface_header); // filesystem interface
+
 uobject* uobject_open_object(uobject_ref ref, uint64_t object_type);
 
 uos_result uobject_close_object(uobject_ref ref);
-
 
 #endif

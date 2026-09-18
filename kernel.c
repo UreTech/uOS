@@ -32,11 +32,6 @@ u64 elapsedMS;
 time_point start, end;
 size_t freeBytes;
 
-__attribute__((optnone)) uint64_t this_must_return_input(uint64_t input)
-{
-	return input;
-}
-
 void t1()
 {
 	uart_print("T1 Joined!\n");
@@ -57,27 +52,6 @@ void t2()
 	}
 }
 
-static inline void disable_dcache(void)
-{
-    uint64_t sctlr;
-
-    asm volatile(
-        "mrs %0, sctlr_el1\n"
-        "bic %0, %0, #(1 << 2)\n"
-        "msr sctlr_el1, %0\n"
-        "isb\n"
-        : "=r"(sctlr)
-        :
-        : "memory"
-    );
-
-	uint64_t sctlr__;
-asm volatile("mrs %0, sctlr_el1" : "=r"(sctlr__));
-uart_print("SCTLR_EL1 M bit (MMU enable): ");
-uart_print_dec(sctlr__ & 0x1);
-uart_print("\n");
-}
-
 // unused here
 extern void el1_sync_handler();
 extern void irq_vector_entry();
@@ -91,29 +65,29 @@ void main()
 
 	vbar_set(_el1_vectors_);
 
-	uart_print("kernel wake up!\n");
+	udbP("kernel wake up!");
 
 	// some systems use this variable so pre assigning prevents too many bugs
 	current_thread = UOS_KERNEL_THREAD_ID;
 
 	// init page allocator
-	uart_print("Starting UMP system...\n");
+	udbP("Starting UMP system...");
 	ump_allocator_init_mem();
 	ump_allocator_init_vmem();
-	uart_print("UMP system started!\n");
+	udbP("UMP system started!");
 
 	// init heap allocator
-	uart_print("Starting UHP system...\n");
+	udbP("Starting UHP system...");
 	init_kernel_base_heaps();
-	uart_print("UHP system started!\n");
+	udbP("UHP system started!");
 
 	// init Super Request Handler (SRH)
 	SRH_init();
-	uart_print("Super Request Handler intiated!\n");
+	udbP("Super Request Handler intiated!");
 
 	// init thread system
 	u_thread_initsys_();
-	uart_print("thread system intiated!\n");
+	udbP("thread system intiated!");
 
 	// init vfs
 	vfs_init();
@@ -124,7 +98,7 @@ void main()
     vfs_create_directory("/devices", "uart");
     vfs_create_directory("/devices", "hardwareRNG");
 
-    vfs_create_directory("/", "parts"); // partitions
+    vfs_create_directory("/", "mounts");
  
     vfs_create_directory("/", "uOS");
     vfs_create_directory("/uOS", "info");
@@ -135,23 +109,51 @@ void main()
 
 	emmc_init();
 
-	uart_print("SD init...\n");
+	udbP("SD init...");
 	if(emmc_init_sd_card() == SUCCESS){
-		uart_print("SD init successful!\n");
+		udbP("SD init successful!");
 		uobject_ref emmc_storage_device = vfs_get_device_ref("/devices/storage/emmc0");
 
-		
+		// detect & mount partitions
+		if(mount_all_partitions(emmc_storage_device) == 0){
+			udbP("No any mountable partition found!");
+		}
 
-		if(format_sd_gpt_with_pre_partitions(emmc_storage_device) == UFS_SUCCESS){
+		/*
+		if(format_sd_gpt_with_pre_partitions(emmc_storage_device) == SUCCESS){
 			uart_print("GPT partitions created!\n");
+
+			partition_info parts[10];
+			if(get_partition_from_device(emmc_storage_device, parts, 10) == SUCCESS){
+				for(int i = 0; i < 10; i++){
+					if(!strcmp(parts[i].name, "uBOOT")){
+						if(create_fat32_partition(parts[i], emmc_storage_device) == SUCCESS){
+							uart_print("uBOOT FAT32 partition created!\n");
+						}else{
+							uart_print(" Failed to create uBOOT FAT32 partition!\n");
+						}
+					}else if(!strcmp(parts[i].name, "uOS-UFS1")){
+						if(create_fat32_partition(parts[i], emmc_storage_device) == SUCCESS){
+							uart_print("uOS-UFS1 FAT32 partition created!\n");
+						}else{
+							uart_print(" Failed to create uOS-UFS1 FAT32 partition!\n");
+						}
+					}
+				}
+			}else{
+				uart_print("FAT32 partition creations failed!\n");
+			}
+
 		}else{
 			uart_print("GPT partition creation failed!\n");
 		}
+		*/
 
 	}else{
-		uart_print("SD init failed!\n");
+		udbP("SD init failed!");
 	}
 
+	udbP("dead end. standby...");
 	while(true);
 
 	// mmu is off here

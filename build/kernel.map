@@ -8,6 +8,7 @@ Discarded input sections
  .comment       0x0000000000000000       0x46 ./u_kernel/drivers/gpio/u_gpio.o
  .comment       0x0000000000000000       0x46 ./u_kernel/drivers/uart/u_uart.o
  .comment       0x0000000000000000       0x46 ./u_kernel/drivers/udisp2/u_display.o
+ .comment       0x0000000000000000       0x46 ./u_kernel/filesystem/fat/fat.o
  .comment       0x0000000000000000       0x46 ./u_kernel/filesystem/ufs/ufs.o
  .comment       0x0000000000000000       0x46 ./u_kernel/filesystem/vfs/vfs.o
  .comment       0x0000000000000000       0x46 ./u_kernel/framework/interrupt/u_interrupt.o
@@ -45,6 +46,7 @@ LOAD ./u_kernel/drivers/emmc/u_emmc.o
 LOAD ./u_kernel/drivers/gpio/u_gpio.o
 LOAD ./u_kernel/drivers/uart/u_uart.o
 LOAD ./u_kernel/drivers/udisp2/u_display.o
+LOAD ./u_kernel/filesystem/fat/fat.o
 LOAD ./u_kernel/filesystem/ufs/ufs.o
 LOAD ./u_kernel/filesystem/vfs/vfs.o
 LOAD ./u_kernel/framework/interrupt/u_interrupt.o
@@ -85,416 +87,429 @@ LOAD ./u_kernel/util/u_cstr_util.o
                 0x0000000000080000                _start
                 0x0000000000080800                el1_vectors
 
-.text           0x0000000000081028     0xdc68
+.text           0x0000000000081028     0xedf4
  *(.text*)
  .text          0x0000000000081028        0x0 boot.o
- .text          0x0000000000081028      0x258 ./kernel.o
-                0x0000000000081028                this_must_return_input
-                0x000000000008103c                t1
-                0x000000000008106c                t2
-                0x000000000008109c                main
- .text          0x0000000000081280      0x9bc ./u_kernel/arch/arm/u_arm.o
-                0x0000000000081280                u_arm_current_el_
-                0x00000000000812a0                esr_exception_flag_names
-                0x000000000008198c                far_exception_flag_names
-                0x00000000000819c4                print_exception_info
- .text          0x0000000000081c3c      0x328 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
-                0x0000000000081c3c                firmware_mailbox_call
-                0x0000000000081ef0                firmware_get_clock_rate
- .text          0x0000000000081f64     0x2de0 ./u_kernel/drivers/emmc/u_emmc.o
-                0x0000000000081f64                emmc_soft_reset
-                0x0000000000082028                _emmc_init_clock_
-                0x0000000000082210                _emmc_set_clock_
-                0x00000000000823c8                emmc_init
-                0x00000000000825d4                _emmc_send_sd_command_
-                0x0000000000082a0c                check_r1_response
-                0x0000000000082a68                wait_r1busy
-                0x0000000000082b18                read_bit_ofsset_with_length
-                0x0000000000082bcc                _SD_CID_PARSER_
-                0x0000000000082cf4                _SD_CSD_PARSER_
-                0x0000000000082f3c                emmc_get_current_csd
-                0x0000000000082f60                emmc_get_current_cid
-                0x0000000000082f94                emmc_get_card_info
-                0x0000000000083018                emmc_wait_card_transfer_state
-                0x000000000008310c                emmc_init_sd_card
-                0x0000000000083d68                emmc_read_sd_card
-                0x0000000000084548                emmc_write_sd_card
-                0x0000000000084d00                emmc_get_lba_count_handle
- .text          0x0000000000084d44      0x448 ./u_kernel/drivers/gpio/u_gpio.o
-                0x0000000000084d44                pinMode
-                0x0000000000084e34                digitalWrite
-                0x0000000000084ee4                gpio_set_function
-                0x00000000000850b0                led_init
-                0x00000000000850f8                led_on
-                0x0000000000085110                led_off
-                0x0000000000085128                led_blink_forever
- .text          0x000000000008518c      0x4a4 ./u_kernel/drivers/uart/u_uart.o
-                0x00000000000851b0                gpio_uart_init
-                0x000000000008523c                uart_init
-                0x000000000008532c                uart_send
-                0x0000000000085398                uart_available
-                0x00000000000853b8                uart_read
-                0x00000000000853cc                uart_recv
-                0x0000000000085438                uart_input
-                0x00000000000854ec                uart_print
-                0x0000000000085530                uart_print_hex8
-                0x0000000000085558                uart_print_hex16
-                0x0000000000085580                uart_print_hex32
-                0x00000000000855a8                uart_print_hex64
-                0x00000000000855d4                uart_print_dec
-                0x0000000000085600                uart_print_float
- .text          0x0000000000085630        0x0 ./u_kernel/drivers/udisp2/u_display.o
- .text          0x0000000000085630     0x200c ./u_kernel/filesystem/ufs/ufs.o
-                0x0000000000085630                char_to_utf16_buf
-                0x00000000000856b0                utf16_to_char_buf
-                0x0000000000085730                _open_emmc_storage_device_
-                0x000000000008589c                format_sd_gpt_with_pre_partitions
-                0x0000000000086410                _check_gpt_header_
-                0x00000000000864c0                get_partition_from_device
-                0x0000000000087490                try_mount_partition
-                0x00000000000874a4                mount_all_partitions
- .text          0x000000000008763c      0xe4c ./u_kernel/filesystem/vfs/vfs.o
-                0x000000000008763c                vfs_init
-                0x00000000000876c4                vfs_find_child
-                0x00000000000878f4                vfs_find_entry
-                0x0000000000087aa0                vfs_add_entry
-                0x0000000000087d5c                vfs_create_directory
-                0x0000000000087f04                vfs_create_device
-                0x00000000000880c8                vfs_get_device_ref
-                0x00000000000881c4                vfs_check_name
-                0x00000000000882f8                _vfs_debug_list_under_dir_
-                0x0000000000088474                vfs_mount_gpt_partitions
- .text          0x0000000000088488      0x568 ./u_kernel/framework/interrupt/u_interrupt.o
-                0x0000000000088488                gic_init
-                0x00000000000884d8                gic_enable_timer_interrupt
-                0x0000000000088650                context_save
-                0x0000000000088760                irq_vector_entry
-                0x00000000000888a8                install_exception_vectors
-                0x00000000000888cc                u_timer_interrupt_init_
-                0x00000000000888e8                u_arm_read_cntfrq
-                0x0000000000088900                u_arm_enable_cntp_irq
-                0x000000000008893c                u_arm_disable_cntp_irq
-                0x000000000008896c                u_arm_instant_cntp_irq
-                0x0000000000088988                u_arm_write_cntp_tval_el0
-                0x00000000000889a4                vbar_set
- .text          0x00000000000889f0      0x6f0 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
-                0x0000000000088be8                _SRH_HANDLE_NULL_
-                0x0000000000088bfc                SRH_init
-                0x0000000000088d7c                SRH_request_call
-                0x0000000000088f80                SRH_process_requests
-                0x0000000000089088                SRH_flush_request
- .text          0x00000000000890e0      0xc30 ./u_kernel/framework/threading/u_thread.o
-                0x00000000000890e0                u_thread_shecdule_next_
-                0x00000000000892a8                context_load
-                0x00000000000893bc                _u_thread_end_handler
-                0x00000000000893f8                u_thread_destroy
-                0x0000000000089554                u_create_context_
-                0x0000000000089608                u_thread_create
-                0x000000000008989c                u_thread_initsys_
-                0x0000000000089958                kernel_idle_loop
-                0x0000000000089a14                u_thread_run_threads_
-                0x0000000000089a58                u_thread_irq_handler_
-                0x0000000000089c88                get_mmu_ctx
-                0x0000000000089cc8                u_yield
- .text          0x0000000000089d10      0xb9c ./u_kernel/memory/u_heap.o
-                0x0000000000089d10                UHP_init_heap_context
-                0x0000000000089d4c                create_slab
-                0x0000000000089fe4                UHP_malloc
-                0x000000000008a3f8                UHP_free
-                0x000000000008a7c0                UHP_query_free_slabs
-                0x000000000008a830                UHP_query_free_slabs_with_filter
- .text          0x000000000008a8ac      0x434 ./u_kernel/memory/u_memory.o
-                0x000000000008a8ac                init_kernel_base_heaps
-                0x000000000008a8d8                kmalloc
-                0x000000000008a904                _SRH_HANDLE_kmalloc_
-                0x000000000008a934                kreloc
-                0x000000000008a964                _SRH_HANDLE_kreloc_
-                0x000000000008a9d0                memcpy
-                0x000000000008a9e8                kfree
-                0x000000000008aa10                _SRH_HANDLE_kfree_
-                0x000000000008aa20                kvmalloc
-                0x000000000008aa4c                _SRH_HANDLE_kvmalloc_
-                0x000000000008aa7c                kvreloc
-                0x000000000008aaac                _SRH_HANDLE_kvreloc_
-                0x000000000008ab18                kvfree
-                0x000000000008ab40                _SRH_HANDLE_kvfree_
-                0x000000000008ab50                palloc
-                0x000000000008ab7c                _SRH_HANDLE_pmalloc_
-                0x000000000008aba4                pfree
-                0x000000000008abcc                _SRH_HANDLE_pfree_
-                0x000000000008abd8                vpalloc
-                0x000000000008ac04                _SRH_HANDLE_vpmalloc_
-                0x000000000008ac2c                vpfree
-                0x000000000008ac54                _SRH_HANDLE_vpfree_
-                0x000000000008ac60                memset
-                0x000000000008ac74                memfill
-                0x000000000008acb8                memcmp
- .text          0x000000000008ace0     0x1074 ./u_kernel/memory/u_mempage.o
-                0x000000000008ace0                ump_allocator_init_mem
-                0x000000000008af84                ump_allocator_init_vmem
-                0x000000000008b228                ump_FPT_set_page_status
-                0x000000000008b2f4                ump_FPT_set_range_page_status
-                0x000000000008b474                get_bit_with_index
-                0x000000000008b4cc                _ump_get_continous_free_pages_
-                0x000000000008b5a0                _ump_get_continous_free_video_pages_
-                0x000000000008b674                ump_palloc
-                0x000000000008b754                ump_vpalloc
-                0x000000000008b834                ump_pfree
-                0x000000000008bab0                ump_vpfree
-                0x000000000008bd2c                ump_allocated_page_count
-                0x000000000008bd40                ump_allocated_vpage_count
- .text          0x000000000008bd54     0x193c ./u_kernel/memory/u_mmu.o
-                0x000000000008bd54                mmu_setup
-                0x000000000008bd90                mmu_create_context
-                0x000000000008bdc8                _mmu_ctx_add_node_
-                0x000000000008be4c                _mmu_destroy_node_
-                0x000000000008bf48                _mmu_try_remove_table_
-                0x000000000008bfb8                mmu_destroy_context
-                0x000000000008c038                mmu_map_range
-                0x000000000008c848                mmu_unmap_range
-                0x000000000008d120                mmu_enable
-                0x000000000008d168                mmu_disable
-                0x000000000008d1b0                mmu_set_ttbr0
-                0x000000000008d1d4                mmu_set_ttbr1
-                0x000000000008d1f8                mmu_switch_ttbr
-                0x000000000008d228                mmu_barrier
-                0x000000000008d238                mmu_flush_tlb
-                0x000000000008d278                mmu_flush_tlb_range
-                0x000000000008d2ec                _mmu_dump_L0_
- .text          0x000000000008d690        0x0 ./u_kernel/objects/fsi/fsi.o
- .text          0x000000000008d690        0x0 ./u_kernel/objects/udevice/udevice.o
- .text          0x000000000008d690      0x874 ./u_kernel/objects/uobject.o
-                0x000000000008d888                uobject_init_uobject_tables
-                0x000000000008d958                uobject_create
-                0x000000000008dc04                uobject_create_null
-                0x000000000008dc34                uobject_create_udevice
-                0x000000000008dc70                uobject_open_object
-                0x000000000008de0c                uobject_close_object
- .text          0x000000000008df04      0x18c ./u_kernel/timer/u_timer.o
-                0x000000000008df04                get_counter_freq
-                0x000000000008df1c                read_cntvct
-                0x000000000008df34                get_now
-                0x000000000008df48                tp_to_ms
-                0x000000000008dfb4                tp_to_us
-                0x000000000008e010                delay_ms
- .text          0x000000000008e090        0x0 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
- .text          0x000000000008e090        0x0 ./u_kernel/uFX/sRND/canvas/u_canvas.o
- .text          0x000000000008e090        0x0 ./u_kernel/uFX/u_uFX.o
- .text          0x000000000008e090      0x1bc ./u_kernel/util/random/u_rand.o
-                0x000000000008e090                srand
-                0x000000000008e0b4                rand
-                0x000000000008e0f4                init_hardware_rng
-                0x000000000008e1e8                hardware_rng32
-                0x000000000008e214                hardware_rng64
- .text          0x000000000008e24c       0xf0 ./u_kernel/util/util.o
-                0x000000000008e24c                crc32_aarch64
- .text          0x000000000008e33c      0x954 ./u_kernel/util/u_cstr_util.o
-                0x000000000008e33c                ntoc
-                0x000000000008e36c                pof
-                0x000000000008e3b4                strlen
-                0x000000000008e410                wstrlen
-                0x000000000008e470                ulltoa
-                0x000000000008e540                lltoa
-                0x000000000008e664                ftoa
-                0x000000000008e800                ulltohexa
-                0x000000000008e8b4                toupper
-                0x000000000008e8f0                strcpy
-                0x000000000008e92c                strcmp
-                0x000000000008e99c                append_strs
-                0x000000000008ea90                parse_read
-                0x000000000008ebd4                parse_read_count
+ .text          0x0000000000081028      0x570 ./kernel.o
+                0x0000000000081028                t1
+                0x0000000000081058                t2
+                0x0000000000081088                main
+ .text          0x0000000000081598      0x9bc ./u_kernel/arch/arm/u_arm.o
+                0x0000000000081598                u_arm_current_el_
+                0x00000000000815b8                esr_exception_flag_names
+                0x0000000000081ca4                far_exception_flag_names
+                0x0000000000081cdc                print_exception_info
+ .text          0x0000000000081f54      0x328 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
+                0x0000000000081f54                firmware_mailbox_call
+                0x0000000000082208                firmware_get_clock_rate
+ .text          0x000000000008227c     0x2de0 ./u_kernel/drivers/emmc/u_emmc.o
+                0x000000000008227c                emmc_soft_reset
+                0x0000000000082340                _emmc_init_clock_
+                0x0000000000082528                _emmc_set_clock_
+                0x00000000000826e0                emmc_init
+                0x00000000000828ec                _emmc_send_sd_command_
+                0x0000000000082d24                check_r1_response
+                0x0000000000082d80                wait_r1busy
+                0x0000000000082e30                read_bit_ofsset_with_length
+                0x0000000000082ee4                _SD_CID_PARSER_
+                0x000000000008300c                _SD_CSD_PARSER_
+                0x0000000000083254                emmc_get_current_csd
+                0x0000000000083278                emmc_get_current_cid
+                0x00000000000832ac                emmc_get_card_info
+                0x0000000000083330                emmc_wait_card_transfer_state
+                0x0000000000083424                emmc_init_sd_card
+                0x0000000000084080                emmc_read_sd_card
+                0x0000000000084860                emmc_write_sd_card
+                0x0000000000085018                emmc_get_lba_count_handle
+ .text          0x000000000008505c      0x448 ./u_kernel/drivers/gpio/u_gpio.o
+                0x000000000008505c                pinMode
+                0x000000000008514c                digitalWrite
+                0x00000000000851fc                gpio_set_function
+                0x00000000000853c8                led_init
+                0x0000000000085410                led_on
+                0x0000000000085428                led_off
+                0x0000000000085440                led_blink_forever
+ .text          0x00000000000854a4      0x4a4 ./u_kernel/drivers/uart/u_uart.o
+                0x00000000000854c8                gpio_uart_init
+                0x0000000000085554                uart_init
+                0x0000000000085644                uart_send
+                0x00000000000856b0                uart_available
+                0x00000000000856d0                uart_read
+                0x00000000000856e4                uart_recv
+                0x0000000000085750                uart_input
+                0x0000000000085804                uart_print
+                0x0000000000085848                uart_print_hex8
+                0x0000000000085870                uart_print_hex16
+                0x0000000000085898                uart_print_hex32
+                0x00000000000858c0                uart_print_hex64
+                0x00000000000858ec                uart_print_dec
+                0x0000000000085918                uart_print_float
+ .text          0x0000000000085948        0x0 ./u_kernel/drivers/udisp2/u_display.o
+ .text          0x0000000000085948      0xda0 ./u_kernel/filesystem/fat/fat.o
+                0x0000000000085948                check_fat32_partition
+                0x0000000000085c78                create_fat32_partition
+                0x00000000000866d4                mount_fat32_partition
+ .text          0x00000000000866e8     0x2050 ./u_kernel/filesystem/ufs/ufs.o
+                0x00000000000866e8                char_to_utf16_buf
+                0x0000000000086768                utf16_to_char_buf
+                0x00000000000867e8                _open_emmc_storage_device_
+                0x0000000000086954                format_sd_gpt_with_pre_partitions
+                0x00000000000874c8                _check_gpt_header_
+                0x0000000000087578                get_partition_from_device
+                0x0000000000088548                try_mount_partition
+                0x00000000000885a0                mount_all_partitions
+ .text          0x0000000000088738      0xe4c ./u_kernel/filesystem/vfs/vfs.o
+                0x0000000000088738                vfs_init
+                0x00000000000887c0                vfs_find_child
+                0x00000000000889f0                vfs_find_entry
+                0x0000000000088b9c                vfs_add_entry
+                0x0000000000088e58                vfs_create_directory
+                0x0000000000089000                vfs_create_device
+                0x00000000000891c4                vfs_get_device_ref
+                0x00000000000892c0                vfs_check_name
+                0x00000000000893f4                _vfs_debug_list_under_dir_
+                0x0000000000089570                vfs_mount_gpt_partitions
+ .text          0x0000000000089584      0x568 ./u_kernel/framework/interrupt/u_interrupt.o
+                0x0000000000089584                gic_init
+                0x00000000000895d4                gic_enable_timer_interrupt
+                0x000000000008974c                context_save
+                0x000000000008985c                irq_vector_entry
+                0x00000000000899a4                install_exception_vectors
+                0x00000000000899c8                u_timer_interrupt_init_
+                0x00000000000899e4                u_arm_read_cntfrq
+                0x00000000000899fc                u_arm_enable_cntp_irq
+                0x0000000000089a38                u_arm_disable_cntp_irq
+                0x0000000000089a68                u_arm_instant_cntp_irq
+                0x0000000000089a84                u_arm_write_cntp_tval_el0
+                0x0000000000089aa0                vbar_set
+ .text          0x0000000000089aec      0x6f0 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
+                0x0000000000089ce4                _SRH_HANDLE_NULL_
+                0x0000000000089cf8                SRH_init
+                0x0000000000089e78                SRH_request_call
+                0x000000000008a07c                SRH_process_requests
+                0x000000000008a184                SRH_flush_request
+ .text          0x000000000008a1dc      0xc30 ./u_kernel/framework/threading/u_thread.o
+                0x000000000008a1dc                u_thread_shecdule_next_
+                0x000000000008a3a4                context_load
+                0x000000000008a4b8                _u_thread_end_handler
+                0x000000000008a4f4                u_thread_destroy
+                0x000000000008a650                u_create_context_
+                0x000000000008a704                u_thread_create
+                0x000000000008a998                u_thread_initsys_
+                0x000000000008aa54                kernel_idle_loop
+                0x000000000008ab10                u_thread_run_threads_
+                0x000000000008ab54                u_thread_irq_handler_
+                0x000000000008ad84                get_mmu_ctx
+                0x000000000008adc4                u_yield
+ .text          0x000000000008ae0c      0xb9c ./u_kernel/memory/u_heap.o
+                0x000000000008ae0c                UHP_init_heap_context
+                0x000000000008ae48                create_slab
+                0x000000000008b0e0                UHP_malloc
+                0x000000000008b4f4                UHP_free
+                0x000000000008b8bc                UHP_query_free_slabs
+                0x000000000008b92c                UHP_query_free_slabs_with_filter
+ .text          0x000000000008b9a8      0x434 ./u_kernel/memory/u_memory.o
+                0x000000000008b9a8                init_kernel_base_heaps
+                0x000000000008b9d4                kmalloc
+                0x000000000008ba00                _SRH_HANDLE_kmalloc_
+                0x000000000008ba30                kreloc
+                0x000000000008ba60                _SRH_HANDLE_kreloc_
+                0x000000000008bacc                memcpy
+                0x000000000008bae4                kfree
+                0x000000000008bb0c                _SRH_HANDLE_kfree_
+                0x000000000008bb1c                kvmalloc
+                0x000000000008bb48                _SRH_HANDLE_kvmalloc_
+                0x000000000008bb78                kvreloc
+                0x000000000008bba8                _SRH_HANDLE_kvreloc_
+                0x000000000008bc14                kvfree
+                0x000000000008bc3c                _SRH_HANDLE_kvfree_
+                0x000000000008bc4c                palloc
+                0x000000000008bc78                _SRH_HANDLE_pmalloc_
+                0x000000000008bca0                pfree
+                0x000000000008bcc8                _SRH_HANDLE_pfree_
+                0x000000000008bcd4                vpalloc
+                0x000000000008bd00                _SRH_HANDLE_vpmalloc_
+                0x000000000008bd28                vpfree
+                0x000000000008bd50                _SRH_HANDLE_vpfree_
+                0x000000000008bd5c                memset
+                0x000000000008bd70                memfill
+                0x000000000008bdb4                memcmp
+ .text          0x000000000008bddc     0x1074 ./u_kernel/memory/u_mempage.o
+                0x000000000008bddc                ump_allocator_init_mem
+                0x000000000008c080                ump_allocator_init_vmem
+                0x000000000008c324                ump_FPT_set_page_status
+                0x000000000008c3f0                ump_FPT_set_range_page_status
+                0x000000000008c570                get_bit_with_index
+                0x000000000008c5c8                _ump_get_continous_free_pages_
+                0x000000000008c69c                _ump_get_continous_free_video_pages_
+                0x000000000008c770                ump_palloc
+                0x000000000008c850                ump_vpalloc
+                0x000000000008c930                ump_pfree
+                0x000000000008cbac                ump_vpfree
+                0x000000000008ce28                ump_allocated_page_count
+                0x000000000008ce3c                ump_allocated_vpage_count
+ .text          0x000000000008ce50     0x193c ./u_kernel/memory/u_mmu.o
+                0x000000000008ce50                mmu_setup
+                0x000000000008ce8c                mmu_create_context
+                0x000000000008cec4                _mmu_ctx_add_node_
+                0x000000000008cf48                _mmu_destroy_node_
+                0x000000000008d044                _mmu_try_remove_table_
+                0x000000000008d0b4                mmu_destroy_context
+                0x000000000008d134                mmu_map_range
+                0x000000000008d944                mmu_unmap_range
+                0x000000000008e21c                mmu_enable
+                0x000000000008e264                mmu_disable
+                0x000000000008e2ac                mmu_set_ttbr0
+                0x000000000008e2d0                mmu_set_ttbr1
+                0x000000000008e2f4                mmu_switch_ttbr
+                0x000000000008e324                mmu_barrier
+                0x000000000008e334                mmu_flush_tlb
+                0x000000000008e374                mmu_flush_tlb_range
+                0x000000000008e3e8                _mmu_dump_L0_
+ .text          0x000000000008e78c        0x0 ./u_kernel/objects/fsi/fsi.o
+ .text          0x000000000008e78c        0x0 ./u_kernel/objects/udevice/udevice.o
+ .text          0x000000000008e78c      0x874 ./u_kernel/objects/uobject.o
+                0x000000000008e984                uobject_init_uobject_tables
+                0x000000000008ea54                uobject_create
+                0x000000000008ed00                uobject_create_null
+                0x000000000008ed30                uobject_create_udevice
+                0x000000000008ed6c                uobject_open_object
+                0x000000000008ef08                uobject_close_object
+ .text          0x000000000008f000      0x18c ./u_kernel/timer/u_timer.o
+                0x000000000008f000                get_counter_freq
+                0x000000000008f018                read_cntvct
+                0x000000000008f030                get_now
+                0x000000000008f044                tp_to_ms
+                0x000000000008f0b0                tp_to_us
+                0x000000000008f10c                delay_ms
+ .text          0x000000000008f18c        0x0 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
+ .text          0x000000000008f18c        0x0 ./u_kernel/uFX/sRND/canvas/u_canvas.o
+ .text          0x000000000008f18c        0x0 ./u_kernel/uFX/u_uFX.o
+ .text          0x000000000008f18c      0x1bc ./u_kernel/util/random/u_rand.o
+                0x000000000008f18c                srand
+                0x000000000008f1b0                rand
+                0x000000000008f1f0                init_hardware_rng
+                0x000000000008f2e4                hardware_rng32
+                0x000000000008f310                hardware_rng64
+ .text          0x000000000008f348      0x180 ./u_kernel/util/util.o
+                0x000000000008f348                crc32_aarch64
+                0x000000000008f438                write_uint16_alignment_safe
+                0x000000000008f468                write_uint32_alignment_safe
+                0x000000000008f498                write_uint64_alignment_safe
+ .text          0x000000000008f4c8      0x954 ./u_kernel/util/u_cstr_util.o
+                0x000000000008f4c8                ntoc
+                0x000000000008f4f8                pof
+                0x000000000008f540                strlen
+                0x000000000008f59c                wstrlen
+                0x000000000008f5fc                ulltoa
+                0x000000000008f6cc                lltoa
+                0x000000000008f7f0                ftoa
+                0x000000000008f98c                ulltohexa
+                0x000000000008fa40                toupper
+                0x000000000008fa7c                strcpy
+                0x000000000008fab8                strcmp
+                0x000000000008fb28                append_strs
+                0x000000000008fc1c                parse_read
+                0x000000000008fd60                parse_read_count
 
-.vectors_high   0x000000000008f000      0x7d0
- .vectors_high  0x000000000008f000      0x7d0 boot.o
-                0x000000000008f000                high_va_el1_vectors
-                0x000000000008f798                el1_sync_handler
+.vectors_high   0x0000000000090000      0x7d0
+ .vectors_high  0x0000000000090000      0x7d0 boot.o
+                0x0000000000090000                high_va_el1_vectors
+                0x0000000000090798                el1_sync_handler
 
-.iplt           0x000000000008f7d0        0x0
- .iplt          0x000000000008f7d0        0x0 boot.o
-                0x0000000000090000                . = ALIGN (0x1000)
-                0x0000000000090000                __kernel_text_end__ = .
-                0x0000000000090000                __kernel_rodata_start__ = .
+.iplt           0x00000000000907d0        0x0
+ .iplt          0x00000000000907d0        0x0 boot.o
+                0x0000000000091000                . = ALIGN (0x1000)
+                0x0000000000091000                __kernel_text_end__ = .
+                0x0000000000091000                __kernel_rodata_start__ = .
 
-.rodata         0x0000000000090000     0x2a80
+.rodata         0x0000000000091000     0x2c98
  *(.rodata .rodata.* .gnu.linkonce.r*)
- .rodata        0x0000000000090000      0x211 ./kernel.o
- *fill*         0x0000000000090211        0x7 
- .rodata        0x0000000000090218      0x875 ./u_kernel/arch/arm/u_arm.o
- *fill*         0x0000000000090a8d        0x3 
- .rodata        0x0000000000090a90      0x11b ./u_kernel/drivers/bcm2711/firmware_mailbox.o
- *fill*         0x0000000000090bab        0x5 
- .rodata        0x0000000000090bb0      0x811 ./u_kernel/drivers/emmc/u_emmc.o
- *fill*         0x00000000000913c1        0x7 
- .rodata        0x00000000000913c8      0x66b ./u_kernel/filesystem/ufs/ufs.o
- *fill*         0x0000000000091a33        0x5 
- .rodata        0x0000000000091a38      0x311 ./u_kernel/filesystem/vfs/vfs.o
- *fill*         0x0000000000091d49        0x7 
- .rodata        0x0000000000091d50       0x12 ./u_kernel/framework/interrupt/u_interrupt.o
- *fill*         0x0000000000091d62        0x6 
- .rodata        0x0000000000091d68      0x119 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
- *fill*         0x0000000000091e81        0x7 
- .rodata        0x0000000000091e88       0x87 ./u_kernel/framework/threading/u_thread.o
- *fill*         0x0000000000091f0f        0x1 
- .rodata        0x0000000000091f10      0x1d7 ./u_kernel/memory/u_heap.o
- *fill*         0x00000000000920e7        0x1 
- .rodata        0x00000000000920e8      0x24a ./u_kernel/memory/u_mempage.o
- *fill*         0x0000000000092332        0x6 
- .rodata        0x0000000000092338      0x58e ./u_kernel/memory/u_mmu.o
- *fill*         0x00000000000928c6        0x2 
- .rodata        0x00000000000928c8      0x1a5 ./u_kernel/objects/uobject.o
- *fill*         0x0000000000092a6d        0x3 
- .rodata        0x0000000000092a70       0x10 ./u_kernel/util/u_cstr_util.o
-                0x0000000000092a70                hexsym
+ .rodata        0x0000000000091000      0x22d ./kernel.o
+ *fill*         0x000000000009122d        0x3 
+ .rodata        0x0000000000091230      0x875 ./u_kernel/arch/arm/u_arm.o
+ *fill*         0x0000000000091aa5        0x3 
+ .rodata        0x0000000000091aa8      0x11b ./u_kernel/drivers/bcm2711/firmware_mailbox.o
+ *fill*         0x0000000000091bc3        0x5 
+ .rodata        0x0000000000091bc8      0x811 ./u_kernel/drivers/emmc/u_emmc.o
+ *fill*         0x00000000000923d9        0x7 
+ .rodata        0x00000000000923e0      0x1c4 ./u_kernel/filesystem/fat/fat.o
+ *fill*         0x00000000000925a4        0x4 
+ .rodata        0x00000000000925a8      0x6a3 ./u_kernel/filesystem/ufs/ufs.o
+ *fill*         0x0000000000092c4b        0x5 
+ .rodata        0x0000000000092c50      0x311 ./u_kernel/filesystem/vfs/vfs.o
+ *fill*         0x0000000000092f61        0x7 
+ .rodata        0x0000000000092f68       0x12 ./u_kernel/framework/interrupt/u_interrupt.o
+ *fill*         0x0000000000092f7a        0x6 
+ .rodata        0x0000000000092f80      0x119 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
+ *fill*         0x0000000000093099        0x7 
+ .rodata        0x00000000000930a0       0x87 ./u_kernel/framework/threading/u_thread.o
+ *fill*         0x0000000000093127        0x1 
+ .rodata        0x0000000000093128      0x1d7 ./u_kernel/memory/u_heap.o
+ *fill*         0x00000000000932ff        0x1 
+ .rodata        0x0000000000093300      0x24a ./u_kernel/memory/u_mempage.o
+ *fill*         0x000000000009354a        0x6 
+ .rodata        0x0000000000093550      0x58e ./u_kernel/memory/u_mmu.o
+ *fill*         0x0000000000093ade        0x2 
+ .rodata        0x0000000000093ae0      0x1a5 ./u_kernel/objects/uobject.o
+ *fill*         0x0000000000093c85        0x3 
+ .rodata        0x0000000000093c88       0x10 ./u_kernel/util/u_cstr_util.o
+                0x0000000000093c88                hexsym
 
-.rela.dyn       0x0000000000092a80        0x0
- .rela.iplt     0x0000000000092a80        0x0 boot.o
+.rela.dyn       0x0000000000093c98        0x0
+ .rela.iplt     0x0000000000093c98        0x0 boot.o
  .rela.text.boot
-                0x0000000000092a80        0x0 boot.o
- .rela.got      0x0000000000092a80        0x0 boot.o
+                0x0000000000093c98        0x0 boot.o
+ .rela.got      0x0000000000093c98        0x0 boot.o
  .rela.data.rel
-                0x0000000000092a80        0x0 boot.o
-                0x0000000000093000                . = ALIGN (0x1000)
-                0x0000000000093000                __kernel_rodata_end__ = .
-                0x0000000000093000                __kernel_data_start__ = .
+                0x0000000000093c98        0x0 boot.o
+                0x0000000000094000                . = ALIGN (0x1000)
+                0x0000000000094000                __kernel_rodata_end__ = .
+                0x0000000000094000                __kernel_data_start__ = .
 
-.got            0x0000000000093000       0x78
+.got            0x0000000000094000       0x78
  *(.got .got.*)
- .got           0x0000000000093000       0x60 boot.o
-                0x0000000000093000                _GLOBAL_OFFSET_TABLE_
- .got.plt       0x0000000000093060       0x18 boot.o
+ .got           0x0000000000094000       0x60 boot.o
+                0x0000000000094000                _GLOBAL_OFFSET_TABLE_
+ .got.plt       0x0000000000094060       0x18 boot.o
                 [!provide]                        PROVIDE (_data = .)
 
-.data           0x0000000000093800     0x1310
+.data           0x0000000000094800     0x1330
  *(.data .data.* .gnu.linkonce.d*)
- .data          0x0000000000093800        0x0 boot.o
- .data          0x0000000000093800        0x4 ./kernel.o
- *fill*         0x0000000000093804        0x4 
- .data.rel      0x0000000000093808       0x80 ./kernel.o
- .data          0x0000000000093888        0x0 ./u_kernel/arch/arm/u_arm.o
- .data          0x0000000000093888        0x0 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
- .data.rel      0x0000000000093888       0x30 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
- .data          0x00000000000938b8        0x8 ./u_kernel/drivers/emmc/u_emmc.o
-                0x00000000000938b8                device_ref
- .data.rel      0x00000000000938c0       0x30 ./u_kernel/drivers/emmc/u_emmc.o
- .data          0x00000000000938f0        0x0 ./u_kernel/drivers/gpio/u_gpio.o
- .data.rel      0x00000000000938f0       0x10 ./u_kernel/drivers/gpio/u_gpio.o
- .data          0x0000000000093900        0x0 ./u_kernel/drivers/uart/u_uart.o
- .data.rel      0x0000000000093900       0x10 ./u_kernel/drivers/uart/u_uart.o
- .data          0x0000000000093910        0x0 ./u_kernel/drivers/udisp2/u_display.o
- .data          0x0000000000093910        0x4 ./u_kernel/filesystem/ufs/ufs.o
- *fill*         0x0000000000093914        0x4 
- .data.rel      0x0000000000093918       0x30 ./u_kernel/filesystem/ufs/ufs.o
- .data          0x0000000000093948        0x0 ./u_kernel/filesystem/vfs/vfs.o
- .data.rel      0x0000000000093948       0x20 ./u_kernel/filesystem/vfs/vfs.o
- .data          0x0000000000093968        0x0 ./u_kernel/framework/interrupt/u_interrupt.o
- .data.rel      0x0000000000093968       0x30 ./u_kernel/framework/interrupt/u_interrupt.o
- *fill*         0x0000000000093998      0x668 
+ .data          0x0000000000094800        0x0 boot.o
+ .data          0x0000000000094800        0x4 ./kernel.o
+ *fill*         0x0000000000094804        0x4 
+ .data.rel      0x0000000000094808       0x80 ./kernel.o
+ .data          0x0000000000094888        0x0 ./u_kernel/arch/arm/u_arm.o
+ .data          0x0000000000094888        0x0 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
+ .data.rel      0x0000000000094888       0x30 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
+ .data          0x00000000000948b8        0x8 ./u_kernel/drivers/emmc/u_emmc.o
+                0x00000000000948b8                device_ref
+ .data.rel      0x00000000000948c0       0x30 ./u_kernel/drivers/emmc/u_emmc.o
+ .data          0x00000000000948f0        0x0 ./u_kernel/drivers/gpio/u_gpio.o
+ .data.rel      0x00000000000948f0       0x10 ./u_kernel/drivers/gpio/u_gpio.o
+ .data          0x0000000000094900        0x0 ./u_kernel/drivers/uart/u_uart.o
+ .data.rel      0x0000000000094900       0x10 ./u_kernel/drivers/uart/u_uart.o
+ .data          0x0000000000094910        0x0 ./u_kernel/drivers/udisp2/u_display.o
+ .data          0x0000000000094910        0x4 ./u_kernel/filesystem/fat/fat.o
+ *fill*         0x0000000000094914        0x4 
+ .data.rel      0x0000000000094918       0x20 ./u_kernel/filesystem/fat/fat.o
+ .data          0x0000000000094938        0x4 ./u_kernel/filesystem/ufs/ufs.o
+ *fill*         0x000000000009493c        0x4 
+ .data.rel      0x0000000000094940       0x30 ./u_kernel/filesystem/ufs/ufs.o
+ .data          0x0000000000094970        0x0 ./u_kernel/filesystem/vfs/vfs.o
+ .data.rel      0x0000000000094970       0x20 ./u_kernel/filesystem/vfs/vfs.o
+ .data          0x0000000000094990        0x0 ./u_kernel/framework/interrupt/u_interrupt.o
+ .data.rel      0x0000000000094990       0x30 ./u_kernel/framework/interrupt/u_interrupt.o
+ *fill*         0x00000000000949c0      0x640 
  .data.rel.local
-                0x0000000000094000       0x80 ./u_kernel/framework/interrupt/u_interrupt.o
-                0x0000000000094000                exception_vectors
- .data          0x0000000000094080        0x0 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
- .data.rel      0x0000000000094080       0x80 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
- .data          0x0000000000094100        0x0 ./u_kernel/framework/threading/u_thread.o
- .data.rel      0x0000000000094100       0x80 ./u_kernel/framework/threading/u_thread.o
- .data          0x0000000000094180       0x88 ./u_kernel/memory/u_heap.o
-                0x0000000000094180                slab_size_table
- .data.rel      0x0000000000094208       0x20 ./u_kernel/memory/u_heap.o
- .data          0x0000000000094228        0x0 ./u_kernel/memory/u_mempage.o
- .data.rel      0x0000000000094228       0x20 ./u_kernel/memory/u_mempage.o
- .data          0x0000000000094248        0x0 ./u_kernel/memory/u_mmu.o
- .data.rel      0x0000000000094248       0x70 ./u_kernel/memory/u_mmu.o
- .data          0x00000000000942b8        0x0 ./u_kernel/objects/fsi/fsi.o
- .data          0x00000000000942b8        0x0 ./u_kernel/objects/udevice/udevice.o
- .data          0x00000000000942b8        0x0 ./u_kernel/objects/uobject.o
- .data.rel      0x00000000000942b8       0x20 ./u_kernel/objects/uobject.o
- .data          0x00000000000942d8        0x0 ./u_kernel/timer/u_timer.o
- .data.rel      0x00000000000942d8       0x10 ./u_kernel/timer/u_timer.o
- .data          0x00000000000942e8      0x800 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
-                0x00000000000942e8                console_font_8x8
- .data          0x0000000000094ae8        0x0 ./u_kernel/uFX/sRND/canvas/u_canvas.o
- .data          0x0000000000094ae8        0x0 ./u_kernel/uFX/u_uFX.o
- .data          0x0000000000094ae8        0x4 ./u_kernel/util/random/u_rand.o
- .data          0x0000000000094aec        0x0 ./u_kernel/util/util.o
- .data          0x0000000000094aec        0x0 ./u_kernel/util/u_cstr_util.o
- *fill*         0x0000000000094aec        0x4 
- .data.rel      0x0000000000094af0       0x20 ./u_kernel/util/u_cstr_util.o
+                0x0000000000095000       0x80 ./u_kernel/framework/interrupt/u_interrupt.o
+                0x0000000000095000                exception_vectors
+ .data          0x0000000000095080        0x0 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
+ .data.rel      0x0000000000095080       0x80 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
+ .data          0x0000000000095100        0x0 ./u_kernel/framework/threading/u_thread.o
+ .data.rel      0x0000000000095100       0x80 ./u_kernel/framework/threading/u_thread.o
+ .data          0x0000000000095180       0x88 ./u_kernel/memory/u_heap.o
+                0x0000000000095180                slab_size_table
+ .data.rel      0x0000000000095208       0x20 ./u_kernel/memory/u_heap.o
+ .data          0x0000000000095228        0x0 ./u_kernel/memory/u_mempage.o
+ .data.rel      0x0000000000095228       0x20 ./u_kernel/memory/u_mempage.o
+ .data          0x0000000000095248        0x0 ./u_kernel/memory/u_mmu.o
+ .data.rel      0x0000000000095248       0x70 ./u_kernel/memory/u_mmu.o
+ .data          0x00000000000952b8        0x0 ./u_kernel/objects/fsi/fsi.o
+ .data          0x00000000000952b8        0x0 ./u_kernel/objects/udevice/udevice.o
+ .data          0x00000000000952b8        0x0 ./u_kernel/objects/uobject.o
+ .data.rel      0x00000000000952b8       0x20 ./u_kernel/objects/uobject.o
+ .data          0x00000000000952d8        0x0 ./u_kernel/timer/u_timer.o
+ .data.rel      0x00000000000952d8       0x10 ./u_kernel/timer/u_timer.o
+ .data          0x00000000000952e8      0x800 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
+                0x00000000000952e8                console_font_8x8
+ .data          0x0000000000095ae8        0x0 ./u_kernel/uFX/sRND/canvas/u_canvas.o
+ .data          0x0000000000095ae8        0x0 ./u_kernel/uFX/u_uFX.o
+ .data          0x0000000000095ae8        0x4 ./u_kernel/util/random/u_rand.o
+ .data          0x0000000000095aec        0x0 ./u_kernel/util/util.o
+ *fill*         0x0000000000095aec        0x4 
+ .data.rel      0x0000000000095af0       0x20 ./u_kernel/util/util.o
+ .data          0x0000000000095b10        0x0 ./u_kernel/util/u_cstr_util.o
+ .data.rel      0x0000000000095b10       0x20 ./u_kernel/util/u_cstr_util.o
 
-.igot.plt       0x0000000000094b10        0x0
- .igot.plt      0x0000000000094b10        0x0 boot.o
-                0x0000000000095000                . = ALIGN (0x1000)
-                0x0000000000095000                __kernel_data_end__ = .
+.igot.plt       0x0000000000095b30        0x0
+ .igot.plt      0x0000000000095b30        0x0 boot.o
+                0x0000000000096000                . = ALIGN (0x1000)
+                0x0000000000096000                __kernel_data_end__ = .
 
-.bss            0x0000000000095000    0x11000
-                0x0000000000095000                . = ALIGN (0x1000)
-                0x0000000000095000                __bss_start = .
+.bss            0x0000000000096000    0x11000
+                0x0000000000096000                . = ALIGN (0x1000)
+                0x0000000000096000                __bss_start = .
  *(.bss.heap_ctx)
  *(.bss .bss.*)
- .bss           0x0000000000095000        0x0 boot.o
- .bss           0x0000000000095000       0x20 ./kernel.o
-                0x0000000000095000                elapsedMS
-                0x0000000000095008                start
-                0x0000000000095010                end
-                0x0000000000095018                freeBytes
- .bss           0x0000000000095020        0x0 ./u_kernel/arch/arm/u_arm.o
- .bss           0x0000000000095020        0x0 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
- .bss           0x0000000000095020       0x40 ./u_kernel/drivers/emmc/u_emmc.o
-                0x0000000000095020                current_rca
-                0x0000000000095030                csd
-                0x0000000000095050                cid
- .bss           0x0000000000095060        0x0 ./u_kernel/drivers/gpio/u_gpio.o
- .bss           0x0000000000095060        0x8 ./u_kernel/drivers/uart/u_uart.o
-                0x0000000000095060                uart_mutex
- .bss           0x0000000000095068        0x0 ./u_kernel/drivers/udisp2/u_display.o
- .bss           0x0000000000095068        0x0 ./u_kernel/filesystem/ufs/ufs.o
- .bss           0x0000000000095068       0x80 ./u_kernel/filesystem/vfs/vfs.o
-                0x0000000000095068                root
- .bss           0x00000000000950e8        0x0 ./u_kernel/framework/interrupt/u_interrupt.o
- .bss           0x00000000000950e8    0x10068 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
-                0x00000000000950e8                tREQtable
-                0x00000000000a10e8                reqQueue
-                0x00000000000a50e8                reqCount
-                0x00000000000a50f0                reqMtx
-                0x00000000000a50f8                SRH_HANDLERS
- .bss           0x00000000000a5150       0x20 ./u_kernel/framework/threading/u_thread.o
-                0x00000000000a5150                threads
-                0x00000000000a5158                current_thread
-                0x00000000000a5160                irq_stack
-                0x00000000000a5168                job_done
-                0x00000000000a516c                total_job
- .bss           0x00000000000a5170        0x0 ./u_kernel/memory/u_heap.o
- .bss           0x00000000000a5170       0x50 ./u_kernel/memory/u_memory.o
-                0x00000000000a5170                base_kernel_heap_context
-                0x00000000000a5198                base_kernel_vheap_context
- .bss           0x00000000000a51c0       0x20 ./u_kernel/memory/u_mempage.o
-                0x00000000000a51c0                mmr_header
-                0x00000000000a51c8                vmmr_header
-                0x00000000000a51d0                lastFreePageIndex
-                0x00000000000a51d8                lastFreeVideoPageIndex
- .bss           0x00000000000a51e0        0x0 ./u_kernel/memory/u_mmu.o
- .bss           0x00000000000a51e0        0x0 ./u_kernel/objects/fsi/fsi.o
- .bss           0x00000000000a51e0        0x0 ./u_kernel/objects/udevice/udevice.o
- .bss           0x00000000000a51e0       0x10 ./u_kernel/objects/uobject.o
-                0x00000000000a51e0                object_table_lock
-                0x00000000000a51e8                object_table
- .bss           0x00000000000a51f0       0x10 ./u_kernel/timer/u_timer.o
- .bss           0x00000000000a5200        0x0 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
- .bss           0x00000000000a5200        0x0 ./u_kernel/uFX/sRND/canvas/u_canvas.o
- .bss           0x00000000000a5200        0x0 ./u_kernel/uFX/u_uFX.o
- .bss           0x00000000000a5200        0x0 ./u_kernel/util/random/u_rand.o
- .bss           0x00000000000a5200        0x0 ./u_kernel/util/util.o
- .bss           0x00000000000a5200        0x0 ./u_kernel/util/u_cstr_util.o
+ .bss           0x0000000000096000        0x0 boot.o
+ .bss           0x0000000000096000       0x20 ./kernel.o
+                0x0000000000096000                elapsedMS
+                0x0000000000096008                start
+                0x0000000000096010                end
+                0x0000000000096018                freeBytes
+ .bss           0x0000000000096020        0x0 ./u_kernel/arch/arm/u_arm.o
+ .bss           0x0000000000096020        0x0 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
+ .bss           0x0000000000096020       0x40 ./u_kernel/drivers/emmc/u_emmc.o
+                0x0000000000096020                current_rca
+                0x0000000000096030                csd
+                0x0000000000096050                cid
+ .bss           0x0000000000096060        0x0 ./u_kernel/drivers/gpio/u_gpio.o
+ .bss           0x0000000000096060        0x8 ./u_kernel/drivers/uart/u_uart.o
+                0x0000000000096060                uart_mutex
+ .bss           0x0000000000096068        0x0 ./u_kernel/drivers/udisp2/u_display.o
+ .bss           0x0000000000096068        0x0 ./u_kernel/filesystem/fat/fat.o
+ .bss           0x0000000000096068        0x0 ./u_kernel/filesystem/ufs/ufs.o
+ .bss           0x0000000000096068       0x80 ./u_kernel/filesystem/vfs/vfs.o
+                0x0000000000096068                root
+ .bss           0x00000000000960e8        0x0 ./u_kernel/framework/interrupt/u_interrupt.o
+ .bss           0x00000000000960e8    0x10068 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
+                0x00000000000960e8                tREQtable
+                0x00000000000a20e8                reqQueue
+                0x00000000000a60e8                reqCount
+                0x00000000000a60f0                reqMtx
+                0x00000000000a60f8                SRH_HANDLERS
+ .bss           0x00000000000a6150       0x20 ./u_kernel/framework/threading/u_thread.o
+                0x00000000000a6150                threads
+                0x00000000000a6158                current_thread
+                0x00000000000a6160                irq_stack
+                0x00000000000a6168                job_done
+                0x00000000000a616c                total_job
+ .bss           0x00000000000a6170        0x0 ./u_kernel/memory/u_heap.o
+ .bss           0x00000000000a6170       0x50 ./u_kernel/memory/u_memory.o
+                0x00000000000a6170                base_kernel_heap_context
+                0x00000000000a6198                base_kernel_vheap_context
+ .bss           0x00000000000a61c0       0x20 ./u_kernel/memory/u_mempage.o
+                0x00000000000a61c0                mmr_header
+                0x00000000000a61c8                vmmr_header
+                0x00000000000a61d0                lastFreePageIndex
+                0x00000000000a61d8                lastFreeVideoPageIndex
+ .bss           0x00000000000a61e0        0x0 ./u_kernel/memory/u_mmu.o
+ .bss           0x00000000000a61e0        0x0 ./u_kernel/objects/fsi/fsi.o
+ .bss           0x00000000000a61e0        0x0 ./u_kernel/objects/udevice/udevice.o
+ .bss           0x00000000000a61e0       0x10 ./u_kernel/objects/uobject.o
+                0x00000000000a61e0                object_table_lock
+                0x00000000000a61e8                object_table
+ .bss           0x00000000000a61f0       0x10 ./u_kernel/timer/u_timer.o
+ .bss           0x00000000000a6200        0x0 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
+ .bss           0x00000000000a6200        0x0 ./u_kernel/uFX/sRND/canvas/u_canvas.o
+ .bss           0x00000000000a6200        0x0 ./u_kernel/uFX/u_uFX.o
+ .bss           0x00000000000a6200        0x0 ./u_kernel/util/random/u_rand.o
+ .bss           0x00000000000a6200        0x0 ./u_kernel/util/util.o
+ .bss           0x00000000000a6200        0x0 ./u_kernel/util/u_cstr_util.o
  *(COMMON)
-                0x00000000000a6000                . = ALIGN (0x1000)
- *fill*         0x00000000000a5200      0xe00 
-                0x00000000000a6000                __bss_end = .
-                0x00000000000a6000                __end = .
+                0x00000000000a7000                . = ALIGN (0x1000)
+ *fill*         0x00000000000a6200      0xe00 
+                0x00000000000a7000                __bss_end = .
+                0x00000000000a7000                __end = .
                 [!provide]                        PROVIDE (__kernel_end = .)
-                0x00000000000a6000                . = ALIGN (0x1000)
-                0x00000000000a6000                __heap_base = .
-                0x000000004cca6000                . = (. + HEAP_SIZE)
-                0x000000004cca6000                __heap_end = .
-                0x000000004cca6000                . = ALIGN (0x1000)
-                0x000000004cca6000                __vheap_base = .
+                0x00000000000a7000                . = ALIGN (0x1000)
+                0x00000000000a7000                __heap_base = .
+                0x000000004cca7000                . = (. + HEAP_SIZE)
+                0x000000004cca7000                __heap_end = .
+                0x000000004cca7000                . = ALIGN (0x1000)
+                0x000000004cca7000                __vheap_base = .
                 0x000000007a380000                . = (ARM_RAM_END - TOTAL_STACK)
                 0x000000007a380000                __vheap_end = .
                 0x000000007a380000                . = ALIGN (0x1000)
@@ -534,144 +549,149 @@ LOAD ./u_kernel/util/u_cstr_util.o
 OUTPUT(build/uOSkernel8.elf elf64-littleaarch64)
 LOAD linker stubs
 
-.debug_line     0x0000000000000000     0x5498
+.debug_line     0x0000000000000000     0x5c8f
  .debug_line    0x0000000000000000       0xe4 boot.o
- .debug_line    0x00000000000000e4      0x13e ./kernel.o
- .debug_line    0x0000000000000222      0x238 ./u_kernel/arch/arm/u_arm.o
- .debug_line    0x000000000000045a      0x19c ./u_kernel/drivers/bcm2711/firmware_mailbox.o
- .debug_line    0x00000000000005f6     0x1199 ./u_kernel/drivers/emmc/u_emmc.o
- .debug_line    0x000000000000178f      0x192 ./u_kernel/drivers/gpio/u_gpio.o
- .debug_line    0x0000000000001921      0x219 ./u_kernel/drivers/uart/u_uart.o
- .debug_line    0x0000000000001b3a        0x0 ./u_kernel/drivers/udisp2/u_display.o
- .debug_line    0x0000000000001b3a      0xd59 ./u_kernel/filesystem/ufs/ufs.o
- .debug_line    0x0000000000002893      0x5df ./u_kernel/filesystem/vfs/vfs.o
- .debug_line    0x0000000000002e72      0x164 ./u_kernel/framework/interrupt/u_interrupt.o
- .debug_line    0x0000000000002fd6      0x205 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
- .debug_line    0x00000000000031db      0x346 ./u_kernel/framework/threading/u_thread.o
- .debug_line    0x0000000000003521      0x503 ./u_kernel/memory/u_heap.o
- .debug_line    0x0000000000003a24      0x2d6 ./u_kernel/memory/u_memory.o
- .debug_line    0x0000000000003cfa      0x58a ./u_kernel/memory/u_mempage.o
- .debug_line    0x0000000000004284      0x8db ./u_kernel/memory/u_mmu.o
- .debug_line    0x0000000000004b5f        0x0 ./u_kernel/objects/fsi/fsi.o
- .debug_line    0x0000000000004b5f       0x35 ./u_kernel/objects/udevice/udevice.o
- .debug_line    0x0000000000004b94      0x30b ./u_kernel/objects/uobject.o
- .debug_line    0x0000000000004e9f       0xcf ./u_kernel/timer/u_timer.o
- .debug_line    0x0000000000004f6e       0x3a ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
- .debug_line    0x0000000000004fa8        0x0 ./u_kernel/uFX/sRND/canvas/u_canvas.o
- .debug_line    0x0000000000004fa8       0x35 ./u_kernel/uFX/u_uFX.o
- .debug_line    0x0000000000004fdd       0xfc ./u_kernel/util/random/u_rand.o
- .debug_line    0x00000000000050d9       0xa7 ./u_kernel/util/util.o
- .debug_line    0x0000000000005180      0x318 ./u_kernel/util/u_cstr_util.o
+ .debug_line    0x00000000000000e4      0x2bb ./kernel.o
+ .debug_line    0x000000000000039f      0x238 ./u_kernel/arch/arm/u_arm.o
+ .debug_line    0x00000000000005d7      0x19c ./u_kernel/drivers/bcm2711/firmware_mailbox.o
+ .debug_line    0x0000000000000773     0x1199 ./u_kernel/drivers/emmc/u_emmc.o
+ .debug_line    0x000000000000190c      0x192 ./u_kernel/drivers/gpio/u_gpio.o
+ .debug_line    0x0000000000001a9e      0x219 ./u_kernel/drivers/uart/u_uart.o
+ .debug_line    0x0000000000001cb7        0x0 ./u_kernel/drivers/udisp2/u_display.o
+ .debug_line    0x0000000000001cb7      0x645 ./u_kernel/filesystem/fat/fat.o
+ .debug_line    0x00000000000022fc      0xd65 ./u_kernel/filesystem/ufs/ufs.o
+ .debug_line    0x0000000000003061      0x5df ./u_kernel/filesystem/vfs/vfs.o
+ .debug_line    0x0000000000003640      0x164 ./u_kernel/framework/interrupt/u_interrupt.o
+ .debug_line    0x00000000000037a4      0x205 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
+ .debug_line    0x00000000000039a9      0x346 ./u_kernel/framework/threading/u_thread.o
+ .debug_line    0x0000000000003cef      0x503 ./u_kernel/memory/u_heap.o
+ .debug_line    0x00000000000041f2      0x2d6 ./u_kernel/memory/u_memory.o
+ .debug_line    0x00000000000044c8      0x58a ./u_kernel/memory/u_mempage.o
+ .debug_line    0x0000000000004a52      0x8db ./u_kernel/memory/u_mmu.o
+ .debug_line    0x000000000000532d        0x0 ./u_kernel/objects/fsi/fsi.o
+ .debug_line    0x000000000000532d       0x35 ./u_kernel/objects/udevice/udevice.o
+ .debug_line    0x0000000000005362      0x30b ./u_kernel/objects/uobject.o
+ .debug_line    0x000000000000566d       0xcf ./u_kernel/timer/u_timer.o
+ .debug_line    0x000000000000573c       0x3a ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
+ .debug_line    0x0000000000005776        0x0 ./u_kernel/uFX/sRND/canvas/u_canvas.o
+ .debug_line    0x0000000000005776       0x35 ./u_kernel/uFX/u_uFX.o
+ .debug_line    0x00000000000057ab       0xfc ./u_kernel/util/random/u_rand.o
+ .debug_line    0x00000000000058a7       0xd0 ./u_kernel/util/util.o
+ .debug_line    0x0000000000005977      0x318 ./u_kernel/util/u_cstr_util.o
 
 .debug_line_str
-                0x0000000000000000      0x840
+                0x0000000000000000      0x8a0
  .debug_line_str
-                0x0000000000000000      0x840 boot.o
+                0x0000000000000000      0x8a0 boot.o
                                          0x2b (size before relaxing)
  .debug_line_str
-                0x0000000000000840      0x3f5 ./kernel.o
+                0x00000000000008a0      0x3f5 ./kernel.o
  .debug_line_str
-                0x0000000000000840      0x104 ./u_kernel/arch/arm/u_arm.o
+                0x00000000000008a0      0x104 ./u_kernel/arch/arm/u_arm.o
  .debug_line_str
-                0x0000000000000840       0xf7 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
+                0x00000000000008a0       0xf7 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
  .debug_line_str
-                0x0000000000000840      0x2f1 ./u_kernel/drivers/emmc/u_emmc.o
+                0x00000000000008a0      0x2f1 ./u_kernel/drivers/emmc/u_emmc.o
  .debug_line_str
-                0x0000000000000840      0x15e ./u_kernel/drivers/gpio/u_gpio.o
+                0x00000000000008a0      0x15e ./u_kernel/drivers/gpio/u_gpio.o
  .debug_line_str
-                0x0000000000000840      0x1a7 ./u_kernel/drivers/uart/u_uart.o
+                0x00000000000008a0      0x1a7 ./u_kernel/drivers/uart/u_uart.o
  .debug_line_str
-                0x0000000000000840       0x48 ./u_kernel/drivers/udisp2/u_display.o
+                0x00000000000008a0       0x48 ./u_kernel/drivers/udisp2/u_display.o
  .debug_line_str
-                0x0000000000000840      0x3b9 ./u_kernel/filesystem/ufs/ufs.o
+                0x00000000000008a0      0x2eb ./u_kernel/filesystem/fat/fat.o
  .debug_line_str
-                0x0000000000000840      0x1e4 ./u_kernel/filesystem/vfs/vfs.o
+                0x00000000000008a0      0x3fb ./u_kernel/filesystem/ufs/ufs.o
  .debug_line_str
-                0x0000000000000840      0x1bb ./u_kernel/framework/interrupt/u_interrupt.o
+                0x00000000000008a0      0x1e4 ./u_kernel/filesystem/vfs/vfs.o
  .debug_line_str
-                0x0000000000000840      0x2c4 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
+                0x00000000000008a0      0x1bb ./u_kernel/framework/interrupt/u_interrupt.o
  .debug_line_str
-                0x0000000000000840      0x20d ./u_kernel/framework/threading/u_thread.o
+                0x00000000000008a0      0x2c4 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
  .debug_line_str
-                0x0000000000000840       0xc5 ./u_kernel/memory/u_heap.o
+                0x00000000000008a0      0x20d ./u_kernel/framework/threading/u_thread.o
  .debug_line_str
-                0x0000000000000840       0xe6 ./u_kernel/memory/u_mempage.o
+                0x00000000000008a0       0xc5 ./u_kernel/memory/u_heap.o
  .debug_line_str
-                0x0000000000000840      0x153 ./u_kernel/memory/u_mmu.o
+                0x00000000000008a0       0xe6 ./u_kernel/memory/u_mempage.o
  .debug_line_str
-                0x0000000000000840       0x3f ./u_kernel/objects/fsi/fsi.o
+                0x00000000000008a0      0x153 ./u_kernel/memory/u_mmu.o
  .debug_line_str
-                0x0000000000000840       0x8e ./u_kernel/objects/udevice/udevice.o
+                0x00000000000008a0       0x3f ./u_kernel/objects/fsi/fsi.o
  .debug_line_str
-                0x0000000000000840      0x228 ./u_kernel/objects/uobject.o
+                0x00000000000008a0       0x8e ./u_kernel/objects/udevice/udevice.o
  .debug_line_str
-                0x0000000000000840       0xdd ./u_kernel/timer/u_timer.o
+                0x00000000000008a0      0x228 ./u_kernel/objects/uobject.o
  .debug_line_str
-                0x0000000000000840       0xb7 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
+                0x00000000000008a0       0xdd ./u_kernel/timer/u_timer.o
  .debug_line_str
-                0x0000000000000840       0x48 ./u_kernel/uFX/sRND/canvas/u_canvas.o
+                0x00000000000008a0       0xb7 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
  .debug_line_str
-                0x0000000000000840       0x72 ./u_kernel/uFX/u_uFX.o
+                0x00000000000008a0       0x48 ./u_kernel/uFX/sRND/canvas/u_canvas.o
  .debug_line_str
-                0x0000000000000840       0xd3 ./u_kernel/util/random/u_rand.o
+                0x00000000000008a0       0x72 ./u_kernel/uFX/u_uFX.o
  .debug_line_str
-                0x0000000000000840       0xb6 ./u_kernel/util/util.o
+                0x00000000000008a0       0xd3 ./u_kernel/util/random/u_rand.o
  .debug_line_str
-                0x0000000000000840      0x116 ./u_kernel/util/u_cstr_util.o
+                0x00000000000008a0      0x101 ./u_kernel/util/util.o
+ .debug_line_str
+                0x00000000000008a0      0x116 ./u_kernel/util/u_cstr_util.o
 
-.debug_info     0x0000000000000000     0x85c3
+.debug_info     0x0000000000000000     0x9098
  .debug_info    0x0000000000000000       0x23 boot.o
- .debug_info    0x0000000000000023      0x595 ./kernel.o
- .debug_info    0x00000000000005b8      0x275 ./u_kernel/arch/arm/u_arm.o
- .debug_info    0x000000000000082d      0x2d2 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
- .debug_info    0x0000000000000aff      0xe2f ./u_kernel/drivers/emmc/u_emmc.o
- .debug_info    0x000000000000192e      0x313 ./u_kernel/drivers/gpio/u_gpio.o
- .debug_info    0x0000000000001c41      0x539 ./u_kernel/drivers/uart/u_uart.o
- .debug_info    0x000000000000217a      0xd6a ./u_kernel/filesystem/ufs/ufs.o
- .debug_info    0x0000000000002ee4      0x658 ./u_kernel/filesystem/vfs/vfs.o
- .debug_info    0x000000000000353c      0x3d3 ./u_kernel/framework/interrupt/u_interrupt.o
- .debug_info    0x000000000000390f      0x837 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
- .debug_info    0x0000000000004146      0xb7e ./u_kernel/framework/threading/u_thread.o
- .debug_info    0x0000000000004cc4      0x58a ./u_kernel/memory/u_heap.o
- .debug_info    0x000000000000524e      0xd53 ./u_kernel/memory/u_memory.o
- .debug_info    0x0000000000005fa1      0x647 ./u_kernel/memory/u_mempage.o
- .debug_info    0x00000000000065e8      0xb4a ./u_kernel/memory/u_mmu.o
- .debug_info    0x0000000000007132       0x5e ./u_kernel/objects/udevice/udevice.o
- .debug_info    0x0000000000007190      0x74c ./u_kernel/objects/uobject.o
- .debug_info    0x00000000000078dc      0x22a ./u_kernel/timer/u_timer.o
- .debug_info    0x0000000000007b06       0x54 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
- .debug_info    0x0000000000007b5a       0x57 ./u_kernel/uFX/u_uFX.o
- .debug_info    0x0000000000007bb1      0x155 ./u_kernel/util/random/u_rand.o
- .debug_info    0x0000000000007d06      0x10f ./u_kernel/util/util.o
- .debug_info    0x0000000000007e15      0x7ae ./u_kernel/util/u_cstr_util.o
+ .debug_info    0x0000000000000023      0x584 ./kernel.o
+ .debug_info    0x00000000000005a7      0x275 ./u_kernel/arch/arm/u_arm.o
+ .debug_info    0x000000000000081c      0x2d2 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
+ .debug_info    0x0000000000000aee      0xe2f ./u_kernel/drivers/emmc/u_emmc.o
+ .debug_info    0x000000000000191d      0x313 ./u_kernel/drivers/gpio/u_gpio.o
+ .debug_info    0x0000000000001c30      0x539 ./u_kernel/drivers/uart/u_uart.o
+ .debug_info    0x0000000000002169      0x95c ./u_kernel/filesystem/fat/fat.o
+ .debug_info    0x0000000000002ac5      0xd84 ./u_kernel/filesystem/ufs/ufs.o
+ .debug_info    0x0000000000003849      0x658 ./u_kernel/filesystem/vfs/vfs.o
+ .debug_info    0x0000000000003ea1      0x3d3 ./u_kernel/framework/interrupt/u_interrupt.o
+ .debug_info    0x0000000000004274      0x837 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
+ .debug_info    0x0000000000004aab      0xb7e ./u_kernel/framework/threading/u_thread.o
+ .debug_info    0x0000000000005629      0x58a ./u_kernel/memory/u_heap.o
+ .debug_info    0x0000000000005bb3      0xd53 ./u_kernel/memory/u_memory.o
+ .debug_info    0x0000000000006906      0x647 ./u_kernel/memory/u_mempage.o
+ .debug_info    0x0000000000006f4d      0xb4a ./u_kernel/memory/u_mmu.o
+ .debug_info    0x0000000000007a97       0x5e ./u_kernel/objects/udevice/udevice.o
+ .debug_info    0x0000000000007af5      0x74c ./u_kernel/objects/uobject.o
+ .debug_info    0x0000000000008241      0x22a ./u_kernel/timer/u_timer.o
+ .debug_info    0x000000000000846b       0x54 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
+ .debug_info    0x00000000000084bf       0x57 ./u_kernel/uFX/u_uFX.o
+ .debug_info    0x0000000000008516      0x155 ./u_kernel/util/random/u_rand.o
+ .debug_info    0x000000000000866b      0x27f ./u_kernel/util/util.o
+ .debug_info    0x00000000000088ea      0x7ae ./u_kernel/util/u_cstr_util.o
 
-.debug_abbrev   0x0000000000000000     0x26e1
+.debug_abbrev   0x0000000000000000     0x28ff
  .debug_abbrev  0x0000000000000000       0x12 boot.o
- .debug_abbrev  0x0000000000000012      0x1d6 ./kernel.o
- .debug_abbrev  0x00000000000001e8      0x143 ./u_kernel/arch/arm/u_arm.o
- .debug_abbrev  0x000000000000032b      0x139 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
- .debug_abbrev  0x0000000000000464      0x330 ./u_kernel/drivers/emmc/u_emmc.o
- .debug_abbrev  0x0000000000000794      0x14d ./u_kernel/drivers/gpio/u_gpio.o
- .debug_abbrev  0x00000000000008e1      0x1c1 ./u_kernel/drivers/uart/u_uart.o
- .debug_abbrev  0x0000000000000aa2      0x282 ./u_kernel/filesystem/ufs/ufs.o
- .debug_abbrev  0x0000000000000d24      0x1a2 ./u_kernel/filesystem/vfs/vfs.o
- .debug_abbrev  0x0000000000000ec6      0x1ed ./u_kernel/framework/interrupt/u_interrupt.o
- .debug_abbrev  0x00000000000010b3      0x250 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
- .debug_abbrev  0x0000000000001303      0x358 ./u_kernel/framework/threading/u_thread.o
- .debug_abbrev  0x000000000000165b      0x1ff ./u_kernel/memory/u_heap.o
- .debug_abbrev  0x000000000000185a      0x27e ./u_kernel/memory/u_memory.o
- .debug_abbrev  0x0000000000001ad8      0x23d ./u_kernel/memory/u_mempage.o
- .debug_abbrev  0x0000000000001d15      0x29b ./u_kernel/memory/u_mmu.o
- .debug_abbrev  0x0000000000001fb0       0x26 ./u_kernel/objects/udevice/udevice.o
- .debug_abbrev  0x0000000000001fd6      0x21b ./u_kernel/objects/uobject.o
- .debug_abbrev  0x00000000000021f1      0x124 ./u_kernel/timer/u_timer.o
- .debug_abbrev  0x0000000000002315       0x40 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
- .debug_abbrev  0x0000000000002355       0x26 ./u_kernel/uFX/u_uFX.o
- .debug_abbrev  0x000000000000237b       0xd4 ./u_kernel/util/random/u_rand.o
- .debug_abbrev  0x000000000000244f       0xb4 ./u_kernel/util/util.o
- .debug_abbrev  0x0000000000002503      0x1de ./u_kernel/util/u_cstr_util.o
+ .debug_abbrev  0x0000000000000012      0x1aa ./kernel.o
+ .debug_abbrev  0x00000000000001bc      0x143 ./u_kernel/arch/arm/u_arm.o
+ .debug_abbrev  0x00000000000002ff      0x139 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
+ .debug_abbrev  0x0000000000000438      0x330 ./u_kernel/drivers/emmc/u_emmc.o
+ .debug_abbrev  0x0000000000000768      0x14d ./u_kernel/drivers/gpio/u_gpio.o
+ .debug_abbrev  0x00000000000008b5      0x1c1 ./u_kernel/drivers/uart/u_uart.o
+ .debug_abbrev  0x0000000000000a76      0x200 ./u_kernel/filesystem/fat/fat.o
+ .debug_abbrev  0x0000000000000c76      0x265 ./u_kernel/filesystem/ufs/ufs.o
+ .debug_abbrev  0x0000000000000edb      0x1a2 ./u_kernel/filesystem/vfs/vfs.o
+ .debug_abbrev  0x000000000000107d      0x1ed ./u_kernel/framework/interrupt/u_interrupt.o
+ .debug_abbrev  0x000000000000126a      0x250 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
+ .debug_abbrev  0x00000000000014ba      0x358 ./u_kernel/framework/threading/u_thread.o
+ .debug_abbrev  0x0000000000001812      0x1ff ./u_kernel/memory/u_heap.o
+ .debug_abbrev  0x0000000000001a11      0x27e ./u_kernel/memory/u_memory.o
+ .debug_abbrev  0x0000000000001c8f      0x23d ./u_kernel/memory/u_mempage.o
+ .debug_abbrev  0x0000000000001ecc      0x29b ./u_kernel/memory/u_mmu.o
+ .debug_abbrev  0x0000000000002167       0x26 ./u_kernel/objects/udevice/udevice.o
+ .debug_abbrev  0x000000000000218d      0x21b ./u_kernel/objects/uobject.o
+ .debug_abbrev  0x00000000000023a8      0x124 ./u_kernel/timer/u_timer.o
+ .debug_abbrev  0x00000000000024cc       0x40 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
+ .debug_abbrev  0x000000000000250c       0x26 ./u_kernel/uFX/u_uFX.o
+ .debug_abbrev  0x0000000000002532       0xd4 ./u_kernel/util/random/u_rand.o
+ .debug_abbrev  0x0000000000002606      0x11b ./u_kernel/util/util.o
+ .debug_abbrev  0x0000000000002721      0x1de ./u_kernel/util/u_cstr_util.o
 
-.debug_aranges  0x0000000000000000      0x430
+.debug_aranges  0x0000000000000000      0x460
  .debug_aranges
                 0x0000000000000000       0x40 boot.o
  .debug_aranges
@@ -687,70 +707,73 @@ LOAD linker stubs
  .debug_aranges
                 0x0000000000000130       0x30 ./u_kernel/drivers/uart/u_uart.o
  .debug_aranges
-                0x0000000000000160       0x30 ./u_kernel/filesystem/ufs/ufs.o
+                0x0000000000000160       0x30 ./u_kernel/filesystem/fat/fat.o
  .debug_aranges
-                0x0000000000000190       0x30 ./u_kernel/filesystem/vfs/vfs.o
+                0x0000000000000190       0x30 ./u_kernel/filesystem/ufs/ufs.o
  .debug_aranges
-                0x00000000000001c0       0x30 ./u_kernel/framework/interrupt/u_interrupt.o
+                0x00000000000001c0       0x30 ./u_kernel/filesystem/vfs/vfs.o
  .debug_aranges
-                0x00000000000001f0       0x30 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
+                0x00000000000001f0       0x30 ./u_kernel/framework/interrupt/u_interrupt.o
  .debug_aranges
-                0x0000000000000220       0x30 ./u_kernel/framework/threading/u_thread.o
+                0x0000000000000220       0x30 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
  .debug_aranges
-                0x0000000000000250       0x30 ./u_kernel/memory/u_heap.o
+                0x0000000000000250       0x30 ./u_kernel/framework/threading/u_thread.o
  .debug_aranges
-                0x0000000000000280       0x30 ./u_kernel/memory/u_mempage.o
+                0x0000000000000280       0x30 ./u_kernel/memory/u_heap.o
  .debug_aranges
-                0x00000000000002b0       0x30 ./u_kernel/memory/u_mmu.o
+                0x00000000000002b0       0x30 ./u_kernel/memory/u_mempage.o
  .debug_aranges
-                0x00000000000002e0       0x20 ./u_kernel/objects/udevice/udevice.o
+                0x00000000000002e0       0x30 ./u_kernel/memory/u_mmu.o
  .debug_aranges
-                0x0000000000000300       0x30 ./u_kernel/objects/uobject.o
+                0x0000000000000310       0x20 ./u_kernel/objects/udevice/udevice.o
  .debug_aranges
-                0x0000000000000330       0x30 ./u_kernel/timer/u_timer.o
+                0x0000000000000330       0x30 ./u_kernel/objects/uobject.o
  .debug_aranges
-                0x0000000000000360       0x20 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
+                0x0000000000000360       0x30 ./u_kernel/timer/u_timer.o
  .debug_aranges
-                0x0000000000000380       0x20 ./u_kernel/uFX/u_uFX.o
+                0x0000000000000390       0x20 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
  .debug_aranges
-                0x00000000000003a0       0x30 ./u_kernel/util/random/u_rand.o
+                0x00000000000003b0       0x20 ./u_kernel/uFX/u_uFX.o
  .debug_aranges
-                0x00000000000003d0       0x30 ./u_kernel/util/util.o
+                0x00000000000003d0       0x30 ./u_kernel/util/random/u_rand.o
  .debug_aranges
-                0x0000000000000400       0x30 ./u_kernel/util/u_cstr_util.o
+                0x0000000000000400       0x30 ./u_kernel/util/util.o
+ .debug_aranges
+                0x0000000000000430       0x30 ./u_kernel/util/u_cstr_util.o
 
-.debug_str      0x0000000000000000     0x2071
- .debug_str     0x0000000000000000     0x2071 boot.o
+.debug_str      0x0000000000000000     0x235b
+ .debug_str     0x0000000000000000     0x235b boot.o
                                          0x39 (size before relaxing)
- .debug_str     0x0000000000002071      0x519 ./kernel.o
- .debug_str     0x0000000000002071      0x1d4 ./u_kernel/arch/arm/u_arm.o
- .debug_str     0x0000000000002071      0x213 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
- .debug_str     0x0000000000002071      0x7d8 ./u_kernel/drivers/emmc/u_emmc.o
- .debug_str     0x0000000000002071      0x226 ./u_kernel/drivers/gpio/u_gpio.o
- .debug_str     0x0000000000002071      0x291 ./u_kernel/drivers/uart/u_uart.o
- .debug_str     0x0000000000002071       0x60 ./u_kernel/drivers/udisp2/u_display.o
- .debug_str     0x0000000000002071      0x951 ./u_kernel/filesystem/ufs/ufs.o
- .debug_str     0x0000000000002071      0x31c ./u_kernel/filesystem/vfs/vfs.o
- .debug_str     0x0000000000002071      0x29d ./u_kernel/framework/interrupt/u_interrupt.o
- .debug_str     0x0000000000002071      0x5d3 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
- .debug_str     0x0000000000002071      0x62f ./u_kernel/framework/threading/u_thread.o
- .debug_str     0x0000000000002071      0x345 ./u_kernel/memory/u_heap.o
- .debug_str     0x0000000000002071      0x4d4 ./u_kernel/memory/u_memory.o
- .debug_str     0x0000000000002071      0x3c3 ./u_kernel/memory/u_mempage.o
- .debug_str     0x0000000000002071      0x50a ./u_kernel/memory/u_mmu.o
- .debug_str     0x0000000000002071       0x60 ./u_kernel/objects/fsi/fsi.o
- .debug_str     0x0000000000002071       0xd4 ./u_kernel/objects/udevice/udevice.o
- .debug_str     0x0000000000002071      0x388 ./u_kernel/objects/uobject.o
- .debug_str     0x0000000000002071      0x169 ./u_kernel/timer/u_timer.o
- .debug_str     0x0000000000002071       0x91 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
- .debug_str     0x0000000000002071       0x60 ./u_kernel/uFX/sRND/canvas/u_canvas.o
- .debug_str     0x0000000000002071       0xc2 ./u_kernel/uFX/u_uFX.o
- .debug_str     0x0000000000002071      0x11b ./u_kernel/util/random/u_rand.o
- .debug_str     0x0000000000002071       0xfb ./u_kernel/util/util.o
- .debug_str     0x0000000000002071      0x269 ./u_kernel/util/u_cstr_util.o
+ .debug_str     0x000000000000235b      0x506 ./kernel.o
+ .debug_str     0x000000000000235b      0x1d4 ./u_kernel/arch/arm/u_arm.o
+ .debug_str     0x000000000000235b      0x213 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
+ .debug_str     0x000000000000235b      0x7d8 ./u_kernel/drivers/emmc/u_emmc.o
+ .debug_str     0x000000000000235b      0x226 ./u_kernel/drivers/gpio/u_gpio.o
+ .debug_str     0x000000000000235b      0x291 ./u_kernel/drivers/uart/u_uart.o
+ .debug_str     0x000000000000235b       0x60 ./u_kernel/drivers/udisp2/u_display.o
+ .debug_str     0x000000000000235b      0x75e ./u_kernel/filesystem/fat/fat.o
+ .debug_str     0x000000000000235b      0x967 ./u_kernel/filesystem/ufs/ufs.o
+ .debug_str     0x000000000000235b      0x31c ./u_kernel/filesystem/vfs/vfs.o
+ .debug_str     0x000000000000235b      0x29d ./u_kernel/framework/interrupt/u_interrupt.o
+ .debug_str     0x000000000000235b      0x5d3 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
+ .debug_str     0x000000000000235b      0x62f ./u_kernel/framework/threading/u_thread.o
+ .debug_str     0x000000000000235b      0x345 ./u_kernel/memory/u_heap.o
+ .debug_str     0x000000000000235b      0x4d4 ./u_kernel/memory/u_memory.o
+ .debug_str     0x000000000000235b      0x3c3 ./u_kernel/memory/u_mempage.o
+ .debug_str     0x000000000000235b      0x50a ./u_kernel/memory/u_mmu.o
+ .debug_str     0x000000000000235b       0x60 ./u_kernel/objects/fsi/fsi.o
+ .debug_str     0x000000000000235b       0xd4 ./u_kernel/objects/udevice/udevice.o
+ .debug_str     0x000000000000235b      0x388 ./u_kernel/objects/uobject.o
+ .debug_str     0x000000000000235b      0x169 ./u_kernel/timer/u_timer.o
+ .debug_str     0x000000000000235b       0x91 ./u_kernel/uFX/embeded_fonts/u_kernelBaseFont.o
+ .debug_str     0x000000000000235b       0x60 ./u_kernel/uFX/sRND/canvas/u_canvas.o
+ .debug_str     0x000000000000235b       0xc2 ./u_kernel/uFX/u_uFX.o
+ .debug_str     0x000000000000235b      0x11b ./u_kernel/util/random/u_rand.o
+ .debug_str     0x000000000000235b      0x1bd ./u_kernel/util/util.o
+ .debug_str     0x000000000000235b      0x269 ./u_kernel/util/u_cstr_util.o
 
 .debug_rnglists
-                0x0000000000000000       0xe3
+                0x0000000000000000       0xfa
  .debug_rnglists
                 0x0000000000000000       0x23 boot.o
  .debug_rnglists
@@ -758,33 +781,36 @@ LOAD linker stubs
  .debug_rnglists
                 0x0000000000000066       0x17 ./u_kernel/drivers/uart/u_uart.o
  .debug_rnglists
-                0x000000000000007d       0x17 ./u_kernel/framework/threading/u_thread.o
+                0x000000000000007d       0x17 ./u_kernel/filesystem/fat/fat.o
  .debug_rnglists
-                0x0000000000000094       0x17 ./u_kernel/memory/u_heap.o
+                0x0000000000000094       0x17 ./u_kernel/framework/threading/u_thread.o
  .debug_rnglists
-                0x00000000000000ab       0x38 ./u_kernel/memory/u_mmu.o
+                0x00000000000000ab       0x17 ./u_kernel/memory/u_heap.o
+ .debug_rnglists
+                0x00000000000000c2       0x38 ./u_kernel/memory/u_mmu.o
 
-.debug_frame    0x0000000000000000     0x1e38
- .debug_frame   0x0000000000000000       0x90 ./kernel.o
- .debug_frame   0x0000000000000090       0xa8 ./u_kernel/arch/arm/u_arm.o
- .debug_frame   0x0000000000000138       0x60 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
- .debug_frame   0x0000000000000198      0x2c0 ./u_kernel/drivers/emmc/u_emmc.o
- .debug_frame   0x0000000000000458       0xe0 ./u_kernel/drivers/gpio/u_gpio.o
- .debug_frame   0x0000000000000538      0x240 ./u_kernel/drivers/uart/u_uart.o
- .debug_frame   0x0000000000000778      0x150 ./u_kernel/filesystem/ufs/ufs.o
- .debug_frame   0x00000000000008c8      0x1a0 ./u_kernel/filesystem/vfs/vfs.o
- .debug_frame   0x0000000000000a68      0x198 ./u_kernel/framework/interrupt/u_interrupt.o
- .debug_frame   0x0000000000000c00      0x1f8 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
- .debug_frame   0x0000000000000df8      0x1c8 ./u_kernel/framework/threading/u_thread.o
- .debug_frame   0x0000000000000fc0       0xe8 ./u_kernel/memory/u_heap.o
- .debug_frame   0x00000000000010a8      0x328 ./u_kernel/memory/u_memory.o
- .debug_frame   0x00000000000013d0      0x1e0 ./u_kernel/memory/u_mempage.o
- .debug_frame   0x00000000000015b0      0x288 ./u_kernel/memory/u_mmu.o
- .debug_frame   0x0000000000001838      0x228 ./u_kernel/objects/uobject.o
- .debug_frame   0x0000000000001a60       0xf0 ./u_kernel/timer/u_timer.o
- .debug_frame   0x0000000000001b50       0xa8 ./u_kernel/util/random/u_rand.o
- .debug_frame   0x0000000000001bf8       0x30 ./u_kernel/util/util.o
- .debug_frame   0x0000000000001c28      0x210 ./u_kernel/util/u_cstr_util.o
+.debug_frame    0x0000000000000000     0x1f28
+ .debug_frame   0x0000000000000000       0x70 ./kernel.o
+ .debug_frame   0x0000000000000070       0xa8 ./u_kernel/arch/arm/u_arm.o
+ .debug_frame   0x0000000000000118       0x60 ./u_kernel/drivers/bcm2711/firmware_mailbox.o
+ .debug_frame   0x0000000000000178      0x2c0 ./u_kernel/drivers/emmc/u_emmc.o
+ .debug_frame   0x0000000000000438       0xe0 ./u_kernel/drivers/gpio/u_gpio.o
+ .debug_frame   0x0000000000000518      0x240 ./u_kernel/drivers/uart/u_uart.o
+ .debug_frame   0x0000000000000758       0x90 ./u_kernel/filesystem/fat/fat.o
+ .debug_frame   0x00000000000007e8      0x158 ./u_kernel/filesystem/ufs/ufs.o
+ .debug_frame   0x0000000000000940      0x1a0 ./u_kernel/filesystem/vfs/vfs.o
+ .debug_frame   0x0000000000000ae0      0x198 ./u_kernel/framework/interrupt/u_interrupt.o
+ .debug_frame   0x0000000000000c78      0x1f8 ./u_kernel/framework/SupervisorRequestHandler/u_SuperRH.o
+ .debug_frame   0x0000000000000e70      0x1c8 ./u_kernel/framework/threading/u_thread.o
+ .debug_frame   0x0000000000001038       0xe8 ./u_kernel/memory/u_heap.o
+ .debug_frame   0x0000000000001120      0x328 ./u_kernel/memory/u_memory.o
+ .debug_frame   0x0000000000001448      0x1e0 ./u_kernel/memory/u_mempage.o
+ .debug_frame   0x0000000000001628      0x288 ./u_kernel/memory/u_mmu.o
+ .debug_frame   0x00000000000018b0      0x228 ./u_kernel/objects/uobject.o
+ .debug_frame   0x0000000000001ad8       0xf0 ./u_kernel/timer/u_timer.o
+ .debug_frame   0x0000000000001bc8       0xa8 ./u_kernel/util/random/u_rand.o
+ .debug_frame   0x0000000000001c70       0xa8 ./u_kernel/util/util.o
+ .debug_frame   0x0000000000001d18      0x210 ./u_kernel/util/u_cstr_util.o
 
 .debug_loc      0x0000000000000000      0xcf1
  .debug_loc     0x0000000000000000      0xcf1 ./u_kernel/memory/u_memory.o

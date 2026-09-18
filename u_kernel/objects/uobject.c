@@ -64,8 +64,16 @@ uobject_ref uobject_create_null(const char* name, uint64_t flags){
    return uobject_create(UOBJECT_TYPE_NULL, name, flags, nullptr, 0);
 }
 
+uobject_ref uobject_create_custom(const char* name, uint64_t flags, uint8_t* data, size_t data_size){
+    return uobject_create(UOBJECT_TYPE_CUSTOM, name, flags, data, data_size);
+}
+
 uobject_ref uobject_create_udevice(const char* name, uint64_t flags, udevice device_header){
    return uobject_create(UOBJECT_TYPE_DEVICE, name, flags, (uint8_t*)&device_header, sizeof(udevice));
+}
+
+uobject_ref uobject_create_fsi(const char* name, uint64_t flags, u_fs_interface fs_interface_header){
+   return uobject_create(UOBJECT_TYPE_FSI, name, flags, (uint8_t*)&fs_interface_header, sizeof(u_fs_interface));
 }
 
 uobject* uobject_open_object(uobject_ref ref, uint64_t object_type){

@@ -215,17 +215,17 @@ uos_result format_sd_gpt_with_pre_partitions(uobject_ref device_ref){
     // prepare preset partitions
 
     uint64_t first_partitionable_lba = 34;
-    size_t not_allocated_lba_count = total_lba_count - 66; // 33 default + 33 alternative
+    size_t not_allocated_lba_count = total_lba_count - 67;
 
     // FAT for bootloader
     char_to_utf16_buf("uBOOT", block_of_entries[0].patrtition_name);
-    block_of_entries[0].partition_type_guid[0] = 0x11D2F81FC12A7328ULL;
-    block_of_entries[0].partition_type_guid[1] = 0x3BC93EC9A0004BBAULL;
+    block_of_entries[0].partition_type_guid[0] = 0x4433B9E5EBD0A0A2ULL;
+    block_of_entries[0].partition_type_guid[1] = 0xC79926B7B668C087ULL;
     block_of_entries[0].unique_partition_guid[0] = hardware_rng64();
     block_of_entries[0].unique_partition_guid[1] = hardware_rng64();
     block_of_entries[0].attributes = 0x0;
     block_of_entries[0].starting_lba = first_partitionable_lba;
-    block_of_entries[0].ending_lba = first_partitionable_lba + ((SIZE_1M * 64) / 512) - 1; // 64MB
+    block_of_entries[0].ending_lba = first_partitionable_lba + ((SIZE_1M * 512) / 512) - 1; // 512MB
     first_partitionable_lba += ((SIZE_1M * 64) / 512);
     not_allocated_lba_count -= ((SIZE_1M * 64) / 512);
 
