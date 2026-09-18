@@ -2,3 +2,7 @@
 *.img
 *.elf
 *.map
+build/
+Old build/
+.VSCodeCounter/
+.vscode/
