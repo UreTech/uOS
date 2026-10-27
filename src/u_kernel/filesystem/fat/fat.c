@@ -6,10 +6,63 @@
 #include <u_kernel/objects/fsi/fsi.h>
 #include <u_kernel/util/u_cstr_util.h>
 
+
+// bios parameter block
+typedef struct
+{
+    // common field
+    uint8_t jmpBoot[3]; // not used
+    char OEMName[8]; // "MSDOS5.0"
+    uint16_t bytes_per_sector; // disk LBA size (512 for sd card)
+    uint8_t sector_per_cluster; // it name explains it self
+    uint16_t reserved_sector_count; // generaly 32
+    uint8_t number_of_fats; // generaly 2
+    uint16_t rootEntCount; // not used in fat32
+    uint16_t totSec16; // not used in fat32
+    uint8_t BPB_Media; // 0xF8
+    uint16_t BPB_FATSz16; // not used in fat32
+    uint16_t BPB_SecPerTrk; // not used in fat32
+    uint16_t BPB_NumHeads; // not used in fat32
+    uint32_t BPB_HiddSec; // not used in fat32
+    uint32_t TotSec32; // total sector (512byte LBA) count of FAT32 partition
+    // FAT32 field
+    uint32_t BPB_FATSz32; // size of fat in sectors
+    uint16_t BPB_ExtFlags; // flags
+    uint16_t BPB_FSVer; // 0
+    uint32_t BPB_RootClus; // first cluster number
+    uint16_t BPB_FSInfo; // sector of FSInfo structure in offset from top of FAT32 volume (usualy set to 1)
+    uint16_t BPB_BkBootSec; // sector of backup boot sector in offset from top of FAT32 volume (usualy set to 6)
+    uint8_t BPB_Reserved[12]; // not used
+    uint8_t BS_DriveNum; // 0x80
+    uint8_t BS_Reserved; // 0
+    uint8_t BS_BootSig; // 0x29
+    uint32_t BS_VolID; // a random serial number
+    char BS_VolLab[11]; // volume label
+    char BS_FilSysType[8]; // always "FAT32   "
+    uint8_t BS_BootCode32[420]; // not used
+    uint16_t BS_Sign; // always 0xAA55
+} __attribute__((packed)) fat32_bpb;
+_Static_assert(sizeof(fat32_bpb) == 512, "fat32_bpb must be 512 bytes");
+
+//FSInfo struct
+typedef struct
+{
+    uint32_t FSI_LeadSig; // 0x41615252
+    uint8_t FSI_Reserved1[480];
+    uint32_t FSI_StrucSig; // 0x61417272
+    uint32_t FSI_Free_Count; // last known free cluster count (0xFFFFFFFF = unknown)
+    uint32_t FSI_Nxt_Free; // last known next free cluster (0xFFFFFFFF = unknown)
+    uint8_t FSI_Reserved2[12];
+    uint32_t FSI_TrailSig; // 0xAA550000
+} __attribute__((packed)) fat32_FSInfo;
+_Static_assert(sizeof(fat32_FSInfo) == 512, "fat32_FSInfo must be 512 bytes");
+#define FAT32_FSINFO_UNKNOWN (0xFFFFFFFF)
+
 // os driver instance handling
 typedef struct fat32_instance
 {
     uobject_ref storage_device;
+    u_mutex instance_lock;
     partition_info partition;
     fat32_bpb bpb;
     fat32_FSInfo FSInfo;
@@ -34,6 +87,8 @@ void fat32_create_new_instance(fat32_instance* instance_info){
     }
 
     fat32_instance* current = instances;
+
+    u_mutex_init(&(current->instance_lock));
 
     if(current != nullptr){
         // find end of chain
@@ -68,7 +123,6 @@ fat32_instance* fat32_find_instance(partition_info partition){
 }
 
 // driver
-
 uos_result check_fat32_partition(partition_info partition, uobject_ref storage_device){
     udevice_storage_function_pointers* stor_device = _open_storage_device_(storage_device);
 
@@ -533,6 +587,368 @@ void fat32_get_root_dir_virt_entry(fat32_instance* inst, fat32_dir_entry* result
 
 typedef struct
 {
+    size_t chain_len;
+    uint32_t* chain;
+}fat32_cluster_chain;
+
+// NOTE: DO NOT FORGET TO FREE chain IN STRUCT AFTER USE!
+fat32_cluster_chain fat32_get_chain(fat32_instance* inst, udevice_storage_function_pointers* stor_device, uint32_t chain_start_cluster){
+    fat32_cluster_chain result;
+    result.chain = nullptr;
+    result.chain_len = 0;
+
+    if(!FAT32_CHECK_IS_CLUSTER_ALLOCATED(chain_start_cluster)){
+        udbP("FAT ERROR: Start chain is not valid!");
+        return result;
+    }
+
+    uint64_t lba_size = stor_device->get_lba_size();
+    uint64_t cluster_entry_per_lba = lba_size / sizeof(fat32_cluster_entry);
+
+    fat32_cluster_entry* cluster_table = kmalloc(lba_size); // cluster entry table (or FAT)
+
+    fat32_cluster_entry current_cluster = chain_start_cluster;
+    
+    size_t allocated_chain_count = 16;
+    result.chain = kmalloc(allocated_chain_count * sizeof(uint32_t));
+
+    while(true){
+        uint32_t cluster_entry_offset_in_lba = current_cluster % cluster_entry_per_lba;
+
+        // read cluster entry
+        // calculate which lba it is in fat & read
+        if(stor_device->read(inst->fat1_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
+            udbP("FAT ERROR: Failed to read FAT header!");
+            kfree(cluster_table);
+            kfree(result.chain);
+            result.chain = nullptr;
+            result.chain_len = 0;
+            return result;
+        }
+        
+        // add to list
+        if(result.chain_len < allocated_chain_count){
+            // size is enough
+            result.chain[result.chain_len] = current_cluster;
+            result.chain_len++;
+        }else{
+            // size is not enough
+            allocated_chain_count += 16;
+            result.chain = kreloc(result.chain, result.chain_len * sizeof(uint32_t), allocated_chain_count * sizeof(uint32_t));
+            result.chain[result.chain_len] = current_cluster;
+            result.chain_len++;
+        }
+
+        // go to next
+        if(FAT32_CHECK_IS_CLUSTER_ALLOCATED(cluster_table[cluster_entry_offset_in_lba])){
+            current_cluster = cluster_table[cluster_entry_offset_in_lba];
+        }else{
+            break; // no any more cluster left
+        }
+    }
+
+    kfree(cluster_table);
+    return result;
+}
+
+// NOTE: first_allocated_cluster can be nullptr
+uos_result fat32_allocate_clusters(fat32_instance* inst, udevice_storage_function_pointers* stor_device, uint32_t chain_end_cluster, uint32_t* first_allocated_cluster,  size_t new_cluster_allocation_count, bool zero_clusters){
+    if(new_cluster_allocation_count == 0){
+        udbP("FAT ERROR: 0 new allocation is not allowed!");
+        return FAIL;
+    }
+
+    fat32_cluster_entry* cluster_table = kmalloc(stor_device->get_lba_size()); // cluster entry table (or FAT)
+    uint64_t cluster_entry_per_lba = stor_device->get_lba_size() / sizeof(fat32_cluster_entry);
+    
+    uint32_t current_cluster = 0; // current read cluster in buffer (THIS IS CLUSTER NUMBER NOT THE SECTOR NUMBER)
+    if(inst->FSInfo.FSI_Nxt_Free != FAT32_FSINFO_UNKNOWN){
+        current_cluster = (inst->FSInfo.FSI_Nxt_Free / cluster_entry_per_lba) * cluster_entry_per_lba;
+    }
+    size_t found_free_cluster_count = 0;
+    bool hinted_cluster_is_used = false;
+    uint32_t* free_clusters = kmalloc(new_cluster_allocation_count * sizeof(uint32_t));
+    new_cluster_allocation_count++; // last one is for capturing last free
+    while (found_free_cluster_count < new_cluster_allocation_count)
+    {
+        // read cluster entry
+        // calculate which lba it is in fat & read
+        if(stor_device->read(inst->fat1_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
+            udbP("FAT ERROR: Failed to read FAT!");
+            kfree(cluster_table);
+            kfree(free_clusters);
+            return FAIL;
+        }
+
+        // find free clusters to add to chain
+        for(size_t i = 0; i < cluster_entry_per_lba; i++){
+            if(cluster_table[i] == FAT32_CLUSTER_FREE){
+                if(found_free_cluster_count + 1  == new_cluster_allocation_count){
+                    // catch last one write it to fsinfo
+                    if(((current_cluster) + i) < inst->FSInfo.FSI_Nxt_Free || hinted_cluster_is_used){
+                        inst->FSInfo.FSI_Nxt_Free = (current_cluster) + i;
+                        if(inst->FSInfo.FSI_Free_Count != FAT32_FSINFO_UNKNOWN){
+                            inst->FSInfo.FSI_Free_Count -= new_cluster_allocation_count - 1; // last captured free is not allocated so subtract it
+                        }
+                        // write back to storage
+                        if(stor_device->write(inst->partition.start_lba + inst->bpb.BPB_FSInfo, 1, (uint8_t*)&(inst->FSInfo)) == FAIL){
+                            udbP("FAT ERROR: Failed to writeback FSInfo header!");
+                            kfree(cluster_table);
+                            kfree(free_clusters);
+                            return FAIL;
+                        }
+                    }
+                    found_free_cluster_count++;
+
+                    // free clusters found
+                    new_cluster_allocation_count--; // release captured last free
+                    break; // now go to allocation
+
+                }else{
+                    free_clusters[found_free_cluster_count] = (current_cluster) + i;
+                    if(free_clusters[found_free_cluster_count] == inst->FSInfo.FSI_Nxt_Free){
+                        hinted_cluster_is_used = true;
+                    }
+                    found_free_cluster_count++;
+                }
+            }
+        }
+
+        if(found_free_cluster_count >= new_cluster_allocation_count){
+            break; // go to allocation
+        }
+
+        // go next table
+        current_cluster += cluster_entry_per_lba;
+        if(current_cluster >= inst->data_cluster_count + 2){
+            udbP("FAT ERROR: No free cluster left in volume!");
+            kfree(cluster_table);
+            kfree(free_clusters);
+            return FAIL;
+        }
+    }
+
+    uint8_t* zeroed_cluster = nullptr;
+    if(zero_clusters){
+        zeroed_cluster = kmalloc(stor_device->get_lba_size() * inst->bpb.sector_per_cluster);
+        memset(zeroed_cluster, 0x0, stor_device->get_lba_size() * inst->bpb.sector_per_cluster);
+    }
+
+    // allocation
+    uint32_t last_set_chain_member = chain_end_cluster;
+    if(!FAT32_CHECK_IS_CLUSTER_ALLOCATED(last_set_chain_member)){
+        last_set_chain_member = free_clusters[0];
+    }
+    uint32_t first_clus = last_set_chain_member;
+    for(size_t i = 0; i < new_cluster_allocation_count; i++){
+        if(last_set_chain_member / cluster_entry_per_lba != current_cluster / cluster_entry_per_lba){
+            // current sector is not correct
+            // write back current sector
+            if(stor_device->write(inst->fat1_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
+                udbP("FAT ERROR: Failed to writeback FAT!");
+                kfree(cluster_table);
+                kfree(free_clusters);
+                if(zeroed_cluster != nullptr){
+                    kfree(zeroed_cluster);
+                }
+                return FAIL;
+            }
+            if(stor_device->write(inst->fat2_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
+                udbP("FAT ERROR: Failed to writeback FAT2!");
+                kfree(cluster_table);
+                kfree(free_clusters);
+                if(zeroed_cluster != nullptr){
+                    kfree(zeroed_cluster);
+                }
+                return FAIL;
+            }
+            // read correct sector
+            current_cluster = last_set_chain_member;
+            if(stor_device->read(inst->fat1_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
+                udbP("FAT ERROR: Failed to read FAT!");
+                kfree(cluster_table);
+                kfree(free_clusters);
+                if(zeroed_cluster != nullptr){
+                    kfree(zeroed_cluster);
+                }
+                return FAIL;
+            }
+        }
+        
+        // zero clusters if required
+        if(zero_clusters){
+            if(stor_device->write(inst->data_first_lba + ((last_set_chain_member - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, (uint8_t*)(zeroed_cluster)) == FAIL){
+                udbP("FAT ERROR: Failed to write directory cluster!");
+                if(uobject_close_object(inst->storage_device) == FAIL){
+                    udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+                }
+                kfree(cluster_table);
+                kfree(free_clusters);
+                if(zeroed_cluster != nullptr){
+                    kfree(zeroed_cluster);
+                }
+                return FAIL;
+            }
+        }
+
+        if(i + 1 != new_cluster_allocation_count){
+            // not the last cluster
+            cluster_table[last_set_chain_member % cluster_entry_per_lba] = free_clusters[i]; // give next
+            last_set_chain_member = free_clusters[i];
+        }else{
+            // last cluster
+            cluster_table[last_set_chain_member % cluster_entry_per_lba] = FAT32_CLUSTER_CHAIN_END_MIN; // end
+        }
+
+    }
+
+    // write back last current sector
+    if(stor_device->write(inst->fat1_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
+        udbP("FAT ERROR: Failed to writeback FAT!");
+        kfree(cluster_table);
+        kfree(free_clusters);
+        if(zeroed_cluster != nullptr){
+            kfree(zeroed_cluster);
+        }
+        return FAIL;
+    }
+    if(stor_device->write(inst->fat2_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
+        udbP("FAT ERROR: Failed to writeback FAT2!");
+        kfree(cluster_table);
+        kfree(free_clusters);
+        if(zeroed_cluster != nullptr){
+            kfree(zeroed_cluster);
+        }
+        return FAIL;
+    }
+
+    kfree(cluster_table);
+    kfree(free_clusters);
+    if(zeroed_cluster != nullptr){
+        kfree(zeroed_cluster);
+    }
+    if(first_allocated_cluster != nullptr){
+        *first_allocated_cluster = first_clus;
+    }
+    return SUCCESS; // nothing failed
+}
+
+// frees clusters
+// NOTE: BE SURE chain_start_cluster IS NOT THE FIRST CLUSTER OF THE CHAIN WHEN middle_free IS TRUE!
+uos_result fat32_free_clusters(fat32_instance* inst, udevice_storage_function_pointers* stor_device, uint32_t chain_start_cluster, bool middle_free){
+    // find chain members
+    fat32_cluster_chain ch = {};
+
+    if(middle_free){
+        ch = fat32_get_chain(inst, stor_device, chain_start_cluster - 1);
+    }else{
+        ch = fat32_get_chain(inst, stor_device, chain_start_cluster);
+    }
+    
+    if(ch.chain == nullptr || ch.chain_len == 0){
+        udbP("FAT ERROR: Start chain is not valid!");
+        return FAIL;
+    }
+
+    // set them as free
+    fat32_cluster_entry* cluster_table = kmalloc(stor_device->get_lba_size()); // cluster entry table (or FAT)
+    uint64_t cluster_entry_per_lba = stor_device->get_lba_size() / sizeof(fat32_cluster_entry);
+    
+    uint32_t current_cluster_lba = UINT32_MAX; // current fat lba (UINT32_MAX is a impossible current cluster)
+
+    uint32_t lowest_freed_cluster = UINT32_MAX; // to update fsinfo
+
+    for(size_t i = 0; i <  ch.chain_len; i++){
+        if(!FAT32_CHECK_IS_CLUSTER_ALLOCATED(ch.chain[i])){
+            udbP("FAT ERROR: Chain has invalid member! (THIS MESSAGE SHOULD NOT APPEAR IN ANY WAY)");
+            kfree(ch.chain);
+            kfree(cluster_table);
+            return FAIL;
+        }
+
+        // read or write-back current if required
+        uint32_t required_cluster_lba = (ch.chain[i]) / cluster_entry_per_lba;
+        if(current_cluster_lba != required_cluster_lba){
+
+            // write back current if set
+            if(current_cluster_lba != UINT32_MAX){
+                if(stor_device->write(inst->fat1_first_lba + current_cluster_lba, 1, (uint8_t*)(cluster_table)) == FAIL){
+                    udbP("FAT ERROR: Failed to write FAT!");
+                    kfree(ch.chain);
+                    kfree(cluster_table);
+                    return FAIL;
+                }
+
+                if(stor_device->write(inst->fat2_first_lba + current_cluster_lba, 1, (uint8_t*)(cluster_table)) == FAIL){
+                    udbP("FAT ERROR: Failed to write FAT2!");
+                    kfree(ch.chain);
+                    kfree(cluster_table);
+                    return FAIL;
+                }
+            }
+
+            // read required
+            if(stor_device->read(inst->fat1_first_lba + required_cluster_lba, 1, (uint8_t*)(cluster_table)) == FAIL){
+                udbP("FAT ERROR: Failed to read FAT!");
+                kfree(ch.chain);
+                kfree(cluster_table);
+                return FAIL;
+            }
+            current_cluster_lba = required_cluster_lba;
+        }
+
+        // set chain member as free or set as chain end
+        uint32_t index_in_lba = (ch.chain[i]) % cluster_entry_per_lba;
+        if(middle_free){
+            if(i == 0){
+                cluster_table[index_in_lba] = FAT32_CLUSTER_CHAIN_END_MIN; // set as end of chain
+                middle_free = false;
+                continue;
+            }
+        }
+        cluster_table[index_in_lba] = FAT32_CLUSTER_FREE;
+        if(ch.chain[i] < lowest_freed_cluster){
+            lowest_freed_cluster = ch.chain[i];
+        }
+    }
+    // write back last read one if set
+    if(current_cluster_lba != UINT32_MAX){
+        if(stor_device->write(inst->fat1_first_lba + current_cluster_lba, 1, (uint8_t*)(cluster_table)) == FAIL){
+            udbP("FAT ERROR: Failed to write FAT!");
+            kfree(ch.chain);
+            kfree(cluster_table);
+            return FAIL;
+        }
+        if(stor_device->write(inst->fat2_first_lba + current_cluster_lba, 1, (uint8_t*)(cluster_table)) == FAIL){
+            udbP("FAT ERROR: Failed to write FAT2!");
+            kfree(ch.chain);
+            kfree(cluster_table);
+            return FAIL;
+        }
+    }
+
+    // update fsinfo
+    if(lowest_freed_cluster < inst->FSInfo.FSI_Nxt_Free){
+        inst->FSInfo.FSI_Nxt_Free = lowest_freed_cluster;
+    }
+    if(inst->FSInfo.FSI_Free_Count != FAT32_FSINFO_UNKNOWN){
+        inst->FSInfo.FSI_Free_Count += ch.chain_len; // add freed cluster count
+    }
+    // write back to storage
+    if(stor_device->write(inst->partition.start_lba + inst->bpb.BPB_FSInfo, 1, (uint8_t*)&(inst->FSInfo)) == FAIL){
+        udbP("FAT ERROR: Failed to writeback FSInfo header!");
+        kfree(cluster_table);
+        kfree(ch.chain);
+        return FAIL;
+    }
+
+    kfree(ch.chain);
+    kfree(cluster_table);
+    return SUCCESS;
+}
+
+typedef struct
+{
     fat32_dir_entry entry;
     size_t index_in_dir_list;
     wide_char_t wide_name[256]; // 255 char + nullterm
@@ -746,252 +1162,213 @@ fat32_entry_result fat32_find_entry(fat32_instance* inst, fat32_dir_entry* paren
     return result;
 }
 
-// NOTE: first_allocated_cluster can be nullptr
-uos_result fat32_allocate_cluster(fat32_instance* inst, udevice_storage_function_pointers* stor_device, uint32_t chain_end_cluster, uint32_t* first_allocated_cluster,  size_t new_cluster_allocation_count, bool zero_clusters){
-    if(new_cluster_allocation_count == 0){
-        udbP("FAT ERROR: 0 new allocation is not allowed!");
+uos_result fat32_update_entry(fat32_instance* inst, fat32_dir_entry* parent, size_t index_in_dir_list, fat32_dir_entry* entry){
+    if(!(parent->DIR_Attr & FAT32_ATTR_DIRECTORY_BIT)){
+        udbP("FAT ERROR: Parent is not a directory!");
         return FAIL;
     }
 
-    fat32_cluster_entry* cluster_table = kmalloc(stor_device->get_lba_size()); // cluster entry table (or FAT)
-    uint64_t cluster_entry_per_lba = stor_device->get_lba_size() / sizeof(fat32_cluster_entry);
-    
-    uint32_t current_cluster = 0; // current read cluster in buffer (THIS IS CLUSTER NUMBER NOT THE SECTOR NUMBER)
-    if(inst->FSInfo.FSI_Nxt_Free != FAT32_FSINFO_UNKNOWN){
-        current_cluster = (inst->FSInfo.FSI_Nxt_Free / cluster_entry_per_lba) * cluster_entry_per_lba;
+    // open device
+    udevice_storage_function_pointers* stor_device = _open_storage_device_(inst->storage_device);
+
+    if(stor_device == nullptr){
+        udbP("FAT ERROR: Failed to open storage device!");
+        return FAIL;
     }
-    size_t found_free_cluster_count = 0;
-    bool hinted_cluster_is_used = false;
-    uint32_t* free_clusters = kmalloc(new_cluster_allocation_count * sizeof(uint32_t));
-    new_cluster_allocation_count++; // last one is for capturing last free
-    while (found_free_cluster_count < new_cluster_allocation_count)
+
+
+    uint64_t lba_size = stor_device->get_lba_size();
+    uint64_t dir_entry_count_per_cluster = (lba_size * inst->bpb.sector_per_cluster) / sizeof(fat32_dir_entry);
+
+    uint32_t dir_clus_start = (uint32_t)(parent->DIR_FstClusLO) || ((uint32_t)parent->DIR_FstClusHI << 16);
+    fat32_cluster_chain ch = fat32_get_chain(inst, stor_device, dir_clus_start);
+
+    if(ch.chain == nullptr){
+        udbP("FAT ERROR: Directory doestn have a dir table!");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        return FAIL;
+    }
+
+    size_t entry_cluster_idx = index_in_dir_list / dir_entry_count_per_cluster;
+
+    if(!(entry_cluster_idx < ch.chain_len)){
+        udbP("FAT ERROR: Entry is not in bounds of dir table!");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        kfree(ch.chain);
+        return FAIL;
+    }
+
+    fat32_dir_entry* current_table = kmalloc(lba_size * inst->bpb.sector_per_cluster); // 1 cluster
+    // read cluster (directory entries)
+    if(stor_device->read(inst->data_first_lba + ((ch.chain[entry_cluster_idx] - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, (uint8_t*)(current_table)) == FAIL){
+        udbP("FAT ERROR: Failed to read directory cluster!");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        kfree(ch.chain);
+        kfree(current_table);
+        return FAIL;
+    }
+
+    // update
+    uint64_t entry_index_in_cluster = index_in_dir_list % dir_entry_count_per_cluster;
+    current_table[entry_index_in_cluster] = *entry;
+
+    // write back cluster (directory entries)
+    if(stor_device->write(inst->data_first_lba + ((ch.chain[entry_cluster_idx] - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, (uint8_t*)(current_table)) == FAIL){
+        udbP("FAT ERROR: Failed to write directory cluster!");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        kfree(ch.chain);
+        kfree(current_table);
+        return FAIL;
+    }
+
+    kfree(ch.chain);
+    kfree(current_table);
+    if(uobject_close_object(inst->storage_device) == FAIL){
+        udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        return FAIL;
+    }
+    return SUCCESS;
+}
+
+// NOTE: THIS FUNCTION ONLY DELETES ENTRY NOT THE LINKED CLUSTER CHAIN!
+uos_result fat32_delete_entry(fat32_instance* inst, fat32_dir_entry* parent, size_t deleting_index_in_dir_list){
+    // open device
+    udevice_storage_function_pointers* stor_device = _open_storage_device_(inst->storage_device);
+
+    if(stor_device == nullptr){
+        udbP("FAT ERROR: Failed to open storage device!");
+        return FAIL;
+    }
+
+    // delete entries (search lfn entries backwardly)
+    uint64_t dir_entry_count_per_cluster = (stor_device->get_lba_size() * inst->bpb.sector_per_cluster) / sizeof(fat32_dir_entry);
+    uint32_t parent_clus_chain_start = (uint32_t)(parent->DIR_FstClusLO) | ((uint32_t)parent->DIR_FstClusHI << 16);
+    int64_t current_entry_idx = deleting_index_in_dir_list;
+    uint64_t current_dir_table_cluster_idx = (current_entry_idx + 1) / dir_entry_count_per_cluster; // +1 for checking is this entry is free start (reads next entry's cluster)
+    fat32_cluster_chain ch = fat32_get_chain(inst, stor_device, parent_clus_chain_start);
+    if(ch.chain == nullptr){
+        udbP("FAT ERROR: Failed to read directory cluster chain!");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        return FAIL; 
+    }
+    fat32_dir_entry* current_table = kmalloc(stor_device->get_lba_size() * inst->bpb.sector_per_cluster); // cluster
+    bool read_cluster_updated = false;
+
+    // read cluster
+    if(stor_device->read(inst->data_first_lba + ((ch.chain[current_dir_table_cluster_idx] - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, (uint8_t*)(current_table)) == FAIL){
+        udbP("FAT ERROR: Failed to read directory cluster!");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        kfree(current_table);
+        return FAIL;
+    }
+
+    // check is that is a free start entry
+    uint8_t free_type = FAT32_DIR_ENTRY_FREE;
+    uint32_t relative_current_entry_idx = (current_entry_idx + 1) % dir_entry_count_per_cluster;
+    if(current_table[relative_current_entry_idx].DIR_Name[0] == FAT32_DIR_ENTRY_FREE_START){
+        free_type = FAT32_DIR_ENTRY_FREE_START;
+    }
+
+    // read sfn entry's cluster (if not same as next one)
+    // NOTE: We dont need to write back last read cluster because we didnt changed it
+    current_dir_table_cluster_idx = (current_entry_idx) / dir_entry_count_per_cluster;
+    relative_current_entry_idx = (current_entry_idx) % dir_entry_count_per_cluster;
+    if(stor_device->read(inst->data_first_lba + ((ch.chain[current_dir_table_cluster_idx] - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, (uint8_t*)(current_table)) == FAIL){
+        udbP("FAT ERROR: Failed to read directory cluster!");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        kfree(current_table);
+        return FAIL;
+    }
+
+    // delete sfn entry
+    current_table[relative_current_entry_idx].DIR_Name[0] = free_type;
+    read_cluster_updated = true;
+    current_entry_idx--; // go last lfn entry
+
+
+    while(current_entry_idx >= 0)
     {
-        // read cluster entry
-        // calculate which lba it is in fat & read
-        if(stor_device->read(inst->fat1_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
-            udbP("FAT ERROR: Failed to read FAT!");
-            kfree(cluster_table);
-            kfree(free_clusters);
-            return FAIL;
+        uint64_t required_dir_table_cluster_index = current_entry_idx / dir_entry_count_per_cluster;
+        if(required_dir_table_cluster_index > ch.chain_len){
+            break; // no any more entry left
         }
-
-        // find free clusters to add to chain
-        for(size_t i = 0; i < cluster_entry_per_lba; i++){
-            if(cluster_table[i] == FAT32_CLUSTER_FREE){
-                if(found_free_cluster_count + 1  == new_cluster_allocation_count){
-                    // catch last one write it to fsinfo
-                    if(((current_cluster) + i) < inst->FSInfo.FSI_Nxt_Free || hinted_cluster_is_used){
-                        inst->FSInfo.FSI_Nxt_Free = (current_cluster) + i;
-                        if(inst->FSInfo.FSI_Free_Count != FAT32_FSINFO_UNKNOWN){
-                            inst->FSInfo.FSI_Free_Count -= new_cluster_allocation_count - 1; // last captured free is not allocated so subtract it
-                        }
-                        // write back to storage
-                        if(stor_device->write(inst->partition.start_lba + inst->bpb.BPB_FSInfo, 1, (uint8_t*)&(inst->FSInfo)) == FAIL){
-                            udbP("FAT ERROR: Failed to writeback FSInfo header!");
-                            kfree(cluster_table);
-                            kfree(free_clusters);
-                            return FAIL;
-                        }
+        if(required_dir_table_cluster_index != current_dir_table_cluster_idx){
+            // write-back current if needed
+            if(read_cluster_updated){
+                if(stor_device->write(inst->data_first_lba + ((ch.chain[current_dir_table_cluster_idx] - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, (uint8_t*)(current_table)) == FAIL){
+                    udbP("FAT ERROR: Failed to write directory cluster!");
+                    if(uobject_close_object(inst->storage_device) == FAIL){
+                        udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
                     }
-                    found_free_cluster_count++;
-
-                    // free clusters found
-                    new_cluster_allocation_count--; // release captured last free
-                    break; // now go to allocation
-
-                }else{
-                    free_clusters[found_free_cluster_count] = (current_cluster) + i;
-                    if(free_clusters[found_free_cluster_count] == inst->FSInfo.FSI_Nxt_Free){
-                        hinted_cluster_is_used = true;
-                    }
-                    found_free_cluster_count++;
+                    kfree(current_table);
+                    kfree(ch.chain);
+                    return FAIL;
                 }
+                read_cluster_updated = false;
             }
-        }
 
-        if(found_free_cluster_count >= new_cluster_allocation_count){
-            break; // go to allocation
-        }
-
-        // go next table
-        current_cluster += cluster_entry_per_lba;
-        if(current_cluster >= inst->data_cluster_count + 2){
-            udbP("FAT ERROR: No free cluster left in volume!");
-            kfree(cluster_table);
-            kfree(free_clusters);
-            return FAIL;
-        }
-    }
-
-    uint8_t* zeroed_cluster = nullptr;
-    if(zero_clusters){
-        zeroed_cluster = kmalloc(stor_device->get_lba_size() * inst->bpb.sector_per_cluster);
-        memset(zeroed_cluster, 0x0, stor_device->get_lba_size() * inst->bpb.sector_per_cluster);
-    }
-
-    // allocation
-    uint32_t last_set_chain_member = chain_end_cluster;
-    if(!FAT32_CHECK_IS_CLUSTER_ALLOCATED(last_set_chain_member)){
-        last_set_chain_member = free_clusters[0];
-    }
-    uint32_t first_clus = last_set_chain_member;
-    for(size_t i = 0; i < new_cluster_allocation_count; i++){
-        if(last_set_chain_member / cluster_entry_per_lba != current_cluster / cluster_entry_per_lba){
-            // current sector is not correct
-            // write back current sector
-            if(stor_device->write(inst->fat1_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
-                udbP("FAT ERROR: Failed to writeback FAT!");
-                kfree(cluster_table);
-                kfree(free_clusters);
-                if(zeroed_cluster != nullptr){
-                    kfree(zeroed_cluster);
-                }
-                return FAIL;
-            }
-            if(stor_device->write(inst->fat2_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
-                udbP("FAT ERROR: Failed to writeback FAT2!");
-                kfree(cluster_table);
-                kfree(free_clusters);
-                if(zeroed_cluster != nullptr){
-                    kfree(zeroed_cluster);
-                }
-                return FAIL;
-            }
-            // read correct sector
-            current_cluster = last_set_chain_member;
-            if(stor_device->read(inst->fat1_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
-                udbP("FAT ERROR: Failed to read FAT!");
-                kfree(cluster_table);
-                kfree(free_clusters);
-                if(zeroed_cluster != nullptr){
-                    kfree(zeroed_cluster);
-                }
-                return FAIL;
-            }
-        }
-        
-        // zero clusters if required
-        if(zero_clusters){
-            if(stor_device->write(inst->data_first_lba + ((last_set_chain_member - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, (uint8_t*)(zeroed_cluster)) == FAIL){
-                udbP("FAT ERROR: Failed to write directory cluster!");
+            // read required
+            current_dir_table_cluster_idx = required_dir_table_cluster_index;
+            if(stor_device->read(inst->data_first_lba + ((ch.chain[current_dir_table_cluster_idx] - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, (uint8_t*)(current_table)) == FAIL){
+                udbP("FAT ERROR: Failed to read directory cluster!");
                 if(uobject_close_object(inst->storage_device) == FAIL){
                     udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
                 }
-                kfree(cluster_table);
-                kfree(free_clusters);
-                if(zeroed_cluster != nullptr){
-                    kfree(zeroed_cluster);
-                }
+                kfree(current_table);
+                kfree(ch.chain);
                 return FAIL;
             }
         }
 
-        if(i + 1 != new_cluster_allocation_count){
-            // not the last cluster
-            cluster_table[last_set_chain_member % cluster_entry_per_lba] = free_clusters[i]; // give next
-            last_set_chain_member = free_clusters[i];
-        }else{
-            // last cluster
-            cluster_table[last_set_chain_member % cluster_entry_per_lba] = FAT32_CLUSTER_CHAIN_END_MIN; // end
-        }
+        relative_current_entry_idx = current_entry_idx % dir_entry_count_per_cluster;
 
+        if(current_table[relative_current_entry_idx].DIR_Name[0] == FAT32_DIR_ENTRY_FREE || current_table[relative_current_entry_idx].DIR_Name[0] == FAT32_DIR_ENTRY_FREE_START){
+            break; // no entry left to search
+        }
+        if(current_table[relative_current_entry_idx].DIR_Attr == FAT32_ATTR_LONG_FILE_NAME){
+            current_table[relative_current_entry_idx].DIR_Name[0] = free_type;
+            read_cluster_updated = true;
+            current_entry_idx--; // go last lfn entry
+        }else{
+            break; // no entry left to search
+        }
     }
 
-    // write back last current sector
-    if(stor_device->write(inst->fat1_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
-        udbP("FAT ERROR: Failed to writeback FAT!");
-        kfree(cluster_table);
-        kfree(free_clusters);
-        if(zeroed_cluster != nullptr){
-            kfree(zeroed_cluster);
+    // write-back current if needed
+    if(read_cluster_updated){
+        if(stor_device->write(inst->data_first_lba + ((ch.chain[current_dir_table_cluster_idx] - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, (uint8_t*)(current_table)) == FAIL){
+            udbP("FAT ERROR: Failed to write directory cluster!");
+            if(uobject_close_object(inst->storage_device) == FAIL){
+                udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+            }
+            kfree(current_table);
+            kfree(ch.chain);
+            return FAIL;
         }
+        read_cluster_updated = false;
+    }
+
+    kfree(current_table);
+    kfree(ch.chain);
+    if(uobject_close_object(inst->storage_device) == FAIL){
+        udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
         return FAIL;
     }
-    if(stor_device->write(inst->fat2_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
-        udbP("FAT ERROR: Failed to writeback FAT2!");
-        kfree(cluster_table);
-        kfree(free_clusters);
-        if(zeroed_cluster != nullptr){
-            kfree(zeroed_cluster);
-        }
-        return FAIL;
-    }
-
-    kfree(cluster_table);
-    kfree(free_clusters);
-    if(zeroed_cluster != nullptr){
-        kfree(zeroed_cluster);
-    }
-    if(first_allocated_cluster != nullptr){
-        *first_allocated_cluster = first_clus;
-    }
-    return SUCCESS; // nothing failed
-}
-
-typedef struct
-{
-    size_t chain_len;
-    uint32_t* chain;
-}fat32_cluster_chain;
-
-// NOTE: DO NOT FORGET TO FREE chain IN STRUCT AFTER USE!
-fat32_cluster_chain fat32_get_chain(fat32_instance* inst, udevice_storage_function_pointers* stor_device, uint32_t chain_start_cluster){
-    fat32_cluster_chain result;
-    result.chain = nullptr;
-    result.chain_len = 0;
-
-    if(!FAT32_CHECK_IS_CLUSTER_ALLOCATED(chain_start_cluster)){
-        udbP("FAT ERROR: Start chain is not valid!");
-        return result;
-    }
-
-    uint64_t lba_size = stor_device->get_lba_size();
-    uint64_t cluster_entry_per_lba = lba_size / sizeof(fat32_cluster_entry);
-
-    fat32_cluster_entry* cluster_table = kmalloc(lba_size); // cluster entry table (or FAT)
-
-    fat32_cluster_entry current_cluster = chain_start_cluster;
-    
-    size_t allocated_chain_count = 16;
-    result.chain = kmalloc(allocated_chain_count * sizeof(uint32_t));
-
-    while(true){
-        uint32_t cluster_entry_offset_in_lba = current_cluster % cluster_entry_per_lba;
-
-        // read cluster entry
-        // calculate which lba it is in fat & read
-        if(stor_device->read(inst->fat1_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
-            udbP("FAT ERROR: Failed to read FAT header!");
-            kfree(cluster_table);
-            kfree(result.chain);
-            result.chain = nullptr;
-            result.chain_len = 0;
-            return result;
-        }
-        
-        // add to list
-        if(result.chain_len < allocated_chain_count){
-            // size is enough
-            result.chain[result.chain_len] = current_cluster;
-            result.chain_len++;
-        }else{
-            // size is not enough
-            allocated_chain_count += 16;
-            result.chain = kreloc(result.chain, result.chain_len * sizeof(uint32_t), allocated_chain_count * sizeof(uint32_t));
-            result.chain[result.chain_len] = current_cluster;
-            result.chain_len++;
-        }
-
-        // go to next
-        if(FAT32_CHECK_IS_CLUSTER_ALLOCATED(cluster_table[cluster_entry_offset_in_lba])){
-            current_cluster = cluster_table[cluster_entry_offset_in_lba];
-        }else{
-            break; // no any more cluster left
-        }
-    }
-
-    kfree(cluster_table);
-    return result;
+    return SUCCESS;
 }
 
 // returns  UINT32_MAX if not found
@@ -1111,7 +1488,7 @@ uint32_t fat32_find_continious_free_entries(fat32_instance* inst, fat32_dir_entr
             // no any more cluster left
             // try to allocate new cluster
             if((checked_cluster_count * dir_entry_count_per_cluster) <= UINT16_MAX){
-                if(fat32_allocate_cluster(inst, stor_device, current_cluster, nullptr, 1, true) != SUCCESS){
+                if(fat32_allocate_clusters(inst, stor_device, current_cluster, nullptr, 1, true) != SUCCESS){
                     udbP("FAT ERROR: Not enough entry left in directory! H0");
                     if(uobject_close_object(inst->storage_device) == FAIL){
                         udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
@@ -1161,7 +1538,7 @@ uos_result fat32_create_dir_entry(fat32_instance* inst, fat32_entry_result paren
 
     char random_sfn_name[11];
     bool use_random_sfn = false;
-    if(*sfn_name == '\0'){
+    if(*sfn_name == '\0' || sfn_name == nullptr){
         generate_random_short_name(random_sfn_name);
         sfn_name = random_sfn_name;
         use_random_sfn = true;
@@ -1325,6 +1702,233 @@ uos_result fat32_create_dir_entry(fat32_instance* inst, fat32_entry_result paren
     return SUCCESS;
 }
 
+// forward dec for uos_result fat32_copy();
+uos_result fat32_read(u_fs_interface* interface, const wide_char_t* file_path, size_t read_offset, size_t read_len, void* read_buffer);
+uos_result fat32_write(u_fs_interface* interface, const wide_char_t* file_path, size_t write_offset, size_t write_len, void* write_buffer);
+uos_result fat32_resize_file(u_fs_interface* interface, const wide_char_t* file_path, size_t new_size);
+
+//  --**## fat32 fsi handlers ##**--
+u_fs_file_info fat32_read_info(u_fs_interface* interface, const wide_char_t* path){
+    u_fs_file_info result = {};
+    result.flags = FSI_FLAG_INVALID_BIT;
+    
+    fat32_instance* inst = fat32_find_instance(interface->partition);
+    if(inst == nullptr){
+        udbP("FAT ERROR: File system interface error! H0");
+        return result;
+    }
+
+    // find entry
+    fat32_dir_entry root_dir = {};
+    fat32_get_root_dir_virt_entry(inst, &root_dir);
+
+    fat32_entry_result file_entry = {};
+    memcpy(&(file_entry.entry), &root_dir, sizeof(fat32_dir_entry));
+
+    uint64_t up_dir_count = w_parse_read_count(path, '/');
+
+    wide_char_t read_part[256];
+    for(size_t i = 0; i < up_dir_count; i++){
+        w_parse_read(read_part, path, '/', i);
+
+        if(read_part[0] == '\0'){
+            continue; // empty skip
+        }else{
+            file_entry = fat32_find_entry(inst, &(file_entry.entry), read_part, "");
+            if(file_entry.entry.DIR_Name[0] == FAT32_DIR_ENTRY_FREE){
+                udbP("FAT ERROR: File not found!");
+                return result;
+            }
+        }
+    }
+
+    fat32_dir_entry parent = {};
+    memcpy(&parent, &(file_entry.entry), sizeof(fat32_dir_entry));
+
+    if(file_entry.entry.DIR_Attr & FAT32_ATTR_DIRECTORY_BIT){
+        // find child count if it is a directory
+        // open device
+        uint32_t found_child_count = 0;
+        udevice_storage_function_pointers* stor_device = _open_storage_device_(inst->storage_device);
+
+        if(stor_device == nullptr){
+            udbP("FAT ERROR: Failed to open storage device!");
+            return result;
+        }
+
+        uint64_t lba_size = stor_device->get_lba_size();
+        uint64_t cluster_entry_per_lba = lba_size / sizeof(fat32_cluster_entry);
+        uint64_t dir_entry_count_per_cluster = (lba_size * inst->bpb.sector_per_cluster) / sizeof(fat32_dir_entry);
+
+        fat32_cluster_entry* cluster_table = kmalloc(lba_size); // cluster entry table (or FAT)
+        fat32_dir_entry* current_table = kmalloc(lba_size * inst->bpb.sector_per_cluster); // cluster
+        fat32_long_dir_entry* long_current_table = (fat32_long_dir_entry*)current_table;
+        wide_char_t* current_lfn_name = kmalloc(256 * sizeof(wide_char_t)); // + nullterm
+        memset(current_lfn_name, 0x0, 256 *  sizeof(wide_char_t));
+
+        fat32_cluster_entry current_cluster = (parent.DIR_FstClusLO | (parent.DIR_FstClusHI << 16));
+        size_t long_name_len = 0;
+        uint8_t current_lfn_chksum = 0;
+        uint8_t expected_lfn_id = 0;
+
+        // dir search
+        while(true){
+            uint32_t cluster_entry_offset_in_lba = current_cluster % cluster_entry_per_lba;
+
+            // read cluster entry
+            // calculate which lba it is in fat & read
+            if(stor_device->read(inst->fat1_first_lba + (current_cluster / cluster_entry_per_lba), 1, (uint8_t*)(cluster_table)) == FAIL){
+                udbP("FAT ERROR: Failed to read FAT header!");
+                if(uobject_close_object(inst->storage_device) == FAIL){
+                    udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+                }
+                kfree(cluster_table);
+                kfree(current_table);
+                kfree(current_lfn_name);
+                return result;
+            }
+
+            // cluster dir search
+            // read cluster (directory entries)
+            if(stor_device->read(inst->data_first_lba + ((current_cluster - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, (uint8_t*)(current_table)) == FAIL){
+                udbP("FAT ERROR: Failed to read directory cluster!");
+                if(uobject_close_object(inst->storage_device) == FAIL){
+                    udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+                }
+                kfree(cluster_table);
+                kfree(current_table);
+                kfree(current_lfn_name);
+                return result;
+            }
+
+            bool search_completed = false;
+            for(uint32_t i = 0; i < dir_entry_count_per_cluster; i++){
+                if(current_table[i].DIR_Name[0] == FAT32_DIR_ENTRY_FREE_START){
+                    // no any entries available further
+                    if(uobject_close_object(inst->storage_device) == FAIL){
+                        udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+                    }
+                    kfree(cluster_table);
+                    kfree(current_table);
+                    kfree(current_lfn_name);
+
+                    // RETURN RESULT
+                    search_completed = true;
+                    break;
+                }else if(current_table[i].DIR_Name[0] != FAT32_DIR_ENTRY_FREE){
+                    // check long name
+                    if(current_table[i].DIR_Attr == FAT32_ATTR_LONG_FILE_NAME){
+                        if(long_name_len){
+                            if(long_current_table[i].LDIR_Ord == expected_lfn_id && long_current_table[i].LDIR_Chksum == current_lfn_chksum){
+                                long_name_len = prepend_lfn(&long_current_table[i], current_lfn_name, long_name_len);
+                                expected_lfn_id--;
+                            }else{
+                                // possiable fs corruption
+                                udbP("FAT ERROR: LFN mismatch0 found! Maybe filesystem is corrupted?");
+                                if(uobject_close_object(inst->storage_device) == FAIL){
+                                    udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+                                }
+                                kfree(cluster_table);
+                                kfree(current_table);
+                                kfree(current_lfn_name);
+                                return result;
+                            }
+                        }else{
+                            if(long_current_table[i].LDIR_Ord & FAT32_LFN_ID_FLAG_BEGIN){
+                                long_name_len = prepend_lfn(&long_current_table[i], current_lfn_name, long_name_len);
+                                current_lfn_chksum = long_current_table[i].LDIR_Chksum;
+                                expected_lfn_id = (long_current_table[i].LDIR_Ord & ~FAT32_LFN_ID_FLAG_BEGIN) - 1;
+                            }else{
+                                // possiable fs corruption
+                                udbP("FAT ERROR: LFN mismatch1 found! Maybe filesystem is corrupted?");
+                                if(uobject_close_object(inst->storage_device) == FAIL){
+                                    udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+                                }
+                                kfree(cluster_table);
+                                kfree(current_table);
+                                kfree(current_lfn_name);
+                                return result;
+                            }
+                        }
+                    }else{
+                        if(long_name_len){
+                            if(current_lfn_chksum == fat32_calculate_lfn_chksum(current_table[i].DIR_Name) && expected_lfn_id == 0){
+
+                                found_child_count++;
+
+                                // go to next entry
+                                long_name_len = 0;
+                                memset(current_lfn_name, 0x0, 256 *  sizeof(wide_char_t));
+                                current_lfn_chksum = 0;
+                                expected_lfn_id = 0;
+                                continue;
+
+                            }else{
+                                // possiable fs corruption
+                                udbP("FAT ERROR: LFN mismatch2 found! Maybe filesystem is corrupted?");
+                                if(uobject_close_object(inst->storage_device) == FAIL){
+                                    udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+                                }
+                                kfree(cluster_table);
+                                kfree(current_table);
+                                kfree(current_lfn_name);
+                                return result;
+                            }
+                        }else{
+                            found_child_count++;
+                            
+                            // go to next entry
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            if(search_completed){
+                break;
+            }
+
+            // not found go to next dir entry cluster
+            if(FAT32_CHECK_IS_CLUSTER_ALLOCATED(cluster_table[cluster_entry_offset_in_lba])){
+                current_cluster = cluster_table[cluster_entry_offset_in_lba];
+            }else{
+                break; // no any more cluster left
+            }
+
+        }
+
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        kfree(cluster_table);
+        kfree(current_table);
+        kfree(current_lfn_name);
+        
+        result.file_size = 0;
+        result.child_count = found_child_count;
+        result.flags = 0; // clear invalid flag
+    }else{
+        // read file size if it is not a directory
+        result.file_size = file_entry.entry.DIR_FileSize;
+        result.child_count = 0;
+        result.flags = 0; // clear invalid flag
+    }
+
+    // fill flags
+    result.flags = FSI_FLAG_EXECUTE_BIT; // this is required for not locking down volume
+    if(file_entry.entry.DIR_Attr & FAT32_ATTR_DIRECTORY_BIT){
+        result.flags |= FSI_FLAG_DIRECTORY_BIT;
+    }
+    if(file_entry.entry.DIR_Attr & FAT32_ATTR_READ_ONLY_BIT){
+        result.flags |= FSI_FLAG_RO_BIT;
+    }
+    if(file_entry.entry.DIR_Attr & FAT32_ATTR_HIDDEN_BIT){
+        result.flags |= FSI_FLAG_HIDDEN_BIT;
+    }
+
+    return result;
+}
+
 uos_result fat32_create_file(u_fs_interface* interface, const wide_char_t* parent, const wide_char_t* file_name){
     if(fat32_check_name(file_name) != SUCCESS){
         udbP("FAT ERROR: Illegal name!");
@@ -1332,6 +1936,10 @@ uos_result fat32_create_file(u_fs_interface* interface, const wide_char_t* paren
     }
     
     fat32_instance* inst = fat32_find_instance(interface->partition);
+    if(inst == nullptr){
+        udbP("FAT ERROR: File system interface error! H0");
+        return FAIL;
+    }
 
     fat32_dir_entry root_dir = {};
     fat32_get_root_dir_virt_entry(inst, &root_dir);
@@ -1356,23 +1964,6 @@ uos_result fat32_create_file(u_fs_interface* interface, const wide_char_t* paren
         }
     }
 
-    /*
-    udevice_storage_function_pointers* stor_device = _open_storage_device_(inst->storage_device);
-    fat32_cluster_entry dir_clus = FAT32_CLUSTER_FREE;
-    if(fat32_allocate_cluster(inst, stor_device, FAT32_NEW_CLUSTER, &dir_clus, 1, true) != SUCCESS){
-        udbP("FAT ERROR: Failed to create new file!");
-        if(uobject_close_object(inst->storage_device) != SUCCESS){
-            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
-        }
-        return FAIL;
-    }
-
-    if(uobject_close_object(inst->storage_device) != SUCCESS){
-        udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
-        return FAIL;
-    }
-    */
-
     // no sfn name for auto random sfn name
     if(fat32_create_dir_entry(inst, parent_entry, file_name, "", 0, FAT32_CLUSTER_FREE, 0) != SUCCESS){
         udbP("FAT ERROR: Failed to create new file!");
@@ -1396,6 +1987,10 @@ uos_result fat32_create_dir(u_fs_interface* interface, const wide_char_t* parent
     udbPe();
 
     fat32_instance* inst = fat32_find_instance(interface->partition);
+    if(inst == nullptr){
+        udbP("FAT ERROR: File system interface error! H0");
+        return FAIL;
+    }
 
     fat32_dir_entry root_dir = {};
     fat32_get_root_dir_virt_entry(inst, &root_dir);
@@ -1422,7 +2017,7 @@ uos_result fat32_create_dir(u_fs_interface* interface, const wide_char_t* parent
 
     udevice_storage_function_pointers* stor_device = _open_storage_device_(inst->storage_device);
     fat32_cluster_entry dir_clus = FAT32_CLUSTER_FREE;
-    if(fat32_allocate_cluster(inst, stor_device, FAT32_NEW_CLUSTER, &dir_clus, 1, true) != SUCCESS){
+    if(fat32_allocate_clusters(inst, stor_device, FAT32_NEW_CLUSTER, &dir_clus, 1, true) != SUCCESS){
         udbP("FAT ERROR: Failed to create new directory!");
         if(uobject_close_object(inst->storage_device) != SUCCESS){
             udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
@@ -1502,6 +2097,10 @@ uos_result fat32_get_childs(u_fs_interface* interface, const wide_char_t* dir_pa
     *names_buffer_size = 0;
 
     fat32_instance* inst = fat32_find_instance(interface->partition);
+    if(inst == nullptr){
+        udbP("FAT ERROR: File system interface error! H0");
+        return FAIL;
+    }
 
     fat32_dir_entry root_dir = {};
     fat32_get_root_dir_virt_entry(inst, &root_dir);
@@ -1708,10 +2307,797 @@ uos_result fat32_get_childs(u_fs_interface* interface, const wide_char_t* dir_pa
     return SUCCESS;
 }
 
-uos_result mount_fat32_partition(partition_info partition, uobject_ref storage_device){
-    udevice_emmc_storage_function_pointers* emmc =  _open_emmc_storage_device_(storage_device);
+uos_result fat32_delete(u_fs_interface* interface, const wide_char_t* path){
+    fat32_instance* inst = fat32_find_instance(interface->partition);
+    if(inst == nullptr){
+        udbP("FAT ERROR: File system interface error!");
+        return FAIL;
+    }
+    
+    fat32_dir_entry root_dir = {};
+    fat32_get_root_dir_virt_entry(inst, &root_dir);
 
-    if(emmc == nullptr){
+    fat32_entry_result deleting_entry = {};
+    fat32_entry_result parent_entry = {};
+    memcpy(&(parent_entry.entry), &root_dir, sizeof(fat32_dir_entry));
+    memcpy(&(deleting_entry.entry), &root_dir, sizeof(fat32_dir_entry));
+
+    uint64_t up_dir_count = w_parse_read_count(path, '/');
+
+    wide_char_t read_part[256];
+    for(size_t i = 0; i < up_dir_count; i++){
+        w_parse_read(read_part, path, '/', i);
+
+        if(read_part[0] == '\0'){
+            continue; // empty skip
+        }else{
+            parent_entry = deleting_entry;
+            deleting_entry = fat32_find_entry(inst, &(deleting_entry.entry), read_part, "");
+            if(deleting_entry.entry.DIR_Name[0] == FAT32_DIR_ENTRY_FREE){
+                udbP("FAT ERROR: File not found!");
+                return FAIL;
+            }
+        }
+    }
+
+    fat32_dir_entry parent = {};
+    memcpy(&parent, &(parent_entry.entry), sizeof(fat32_dir_entry));
+
+    // check is it directory
+    if(deleting_entry.entry.DIR_Attr == FAT32_ATTR_DIRECTORY_BIT){
+        // check is it empty
+        u_fs_file_info del_dir_info = fat32_read_info(interface, path);
+
+        if(del_dir_info.child_count > 2){
+            udbP("FAT ERROR: Deleting not empty directory is not allowed! Use manuel solutions.");
+            return FAIL;
+        }
+    }
+    
+    udevice_storage_function_pointers* stor_device = _open_storage_device_(inst->storage_device);
+    if(stor_device == nullptr){
+        udbP("FAT ERROR: Failed to open storage device!");
+        return FAIL;
+    }
+
+    // free clusters if it have
+    uint32_t deleting_clus_chain_start = (uint32_t)(deleting_entry.entry.DIR_FstClusLO) | ((uint32_t)deleting_entry.entry.DIR_FstClusHI << 16);
+    if(FAT32_CHECK_IS_CLUSTER_ALLOCATED(deleting_clus_chain_start)){
+        if(fat32_free_clusters(inst, stor_device, deleting_clus_chain_start, false) != SUCCESS){
+            udbP("FAT ERROR: Failed to free clusters of the entry!");
+            if(uobject_close_object(inst->storage_device) != SUCCESS){
+                udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+            }
+            return FAIL;
+        }
+    }
+    
+    // close device
+    if(uobject_close_object(inst->storage_device) == FAIL){
+        udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        return FAIL;
+    }
+
+    if(fat32_delete_entry(inst, &parent, deleting_entry.index_in_dir_list) != SUCCESS){
+        udbP("FAT ERROR: Failed to delete entry!");
+        return FAIL;
+    }
+    
+    return SUCCESS;
+}
+
+uos_result fat32_repair_fs(u_fs_interface* interface){
+    udbP("This function is not implemented in driver yet!");
+    return FAIL;
+}
+
+uos_result fat32_copy(u_fs_interface* interface, const wide_char_t* src_path, const wide_char_t* dst_path){
+    fat32_instance* inst = fat32_find_instance(interface->partition);
+    if(inst == nullptr){
+        udbP("FAT ERROR: File system interface error!");
+        return FAIL;
+    }
+
+    fat32_dir_entry root_dir = {};
+    fat32_get_root_dir_virt_entry(inst, &root_dir);
+
+    // src entry
+    fat32_entry_result src_entry = {};
+    fat32_entry_result parent_entry = {};
+    memcpy(&(parent_entry.entry), &root_dir, sizeof(fat32_dir_entry));
+    memcpy(&(src_entry.entry), &root_dir, sizeof(fat32_dir_entry));
+
+    uint64_t src_up_dir_count = w_parse_read_count(src_path, '/');
+
+    wide_char_t src_read_part[256];
+    for(size_t i = 0; i < src_up_dir_count; i++){
+        w_parse_read(src_read_part, src_path, '/', i);
+
+        if(src_read_part[0] == '\0'){
+            continue; // empty skip
+        }else{
+            parent_entry = src_entry;
+            src_entry = fat32_find_entry(inst, &(src_entry.entry), src_read_part, "");
+            if(src_entry.entry.DIR_Name[0] == FAT32_DIR_ENTRY_FREE){
+                udbP("FAT ERROR: Source entry not found!");
+                return FAIL;
+            }
+        }
+    }
+    fat32_dir_entry src_parent = {};
+    memcpy(&src_parent, &(parent_entry.entry), sizeof(fat32_dir_entry));
+
+    if(src_entry.entry.DIR_Attr & FAT32_ATTR_DIRECTORY_BIT){
+        udbP("FAT ERROR: Copying directories is not implemented! Use manuel solutions.");
+        return FAIL;
+    }
+
+    // dst dir
+    _separated_path sep_dst_path = separate_path(dst_path);
+    if(sep_dst_path.file_name == nullptr || sep_dst_path.path == nullptr){
+        if(sep_dst_path.file_name != nullptr){
+            kfree(sep_dst_path.file_name);
+        }
+        if(sep_dst_path.path != nullptr){
+            kfree(sep_dst_path.path);
+        }
+        udbP("FAT ERROR: Failed to parse path!");
+        return FAIL;
+    }
+
+    fat32_entry_result dst_dir_entry = {};
+    memcpy(&(parent_entry.entry), &root_dir, sizeof(fat32_dir_entry));
+    memcpy(&(dst_dir_entry.entry), &root_dir, sizeof(fat32_dir_entry));
+
+    uint64_t dst_dir_up_dir_count = w_parse_read_count(sep_dst_path.path, '/');
+
+    wide_char_t dst_dir_read_part[256];
+    for(size_t i = 0; i < dst_dir_up_dir_count; i++){
+        w_parse_read(dst_dir_read_part, sep_dst_path.path, '/', i);
+
+        if(dst_dir_read_part[0] == '\0'){
+            continue; // empty skip
+        }else{
+            parent_entry = dst_dir_entry;
+            dst_dir_entry = fat32_find_entry(inst, &(dst_dir_entry.entry), dst_dir_read_part, "");
+            if(dst_dir_entry.entry.DIR_Name[0] == FAT32_DIR_ENTRY_FREE){
+                udbP("FAT ERROR: Source entry not found!");
+                kfree(sep_dst_path.file_name);
+                kfree(sep_dst_path.path);
+                return FAIL;
+            }
+        }
+    }
+    fat32_dir_entry dst_dir_parent = {};
+    memcpy(&dst_dir_parent, &(parent_entry.entry), sizeof(fat32_dir_entry));
+
+    // create copy file
+    fat32_create_file(interface,sep_dst_path.path, sep_dst_path.file_name);
+    kfree(sep_dst_path.file_name);
+    kfree(sep_dst_path.path);
+
+    // write contents to it
+    uint8_t* buf = kmalloc(SIZE_1K * 256); // 256kb buffer for copying file
+    size_t copied_size = 0;
+    while (copied_size < src_entry.entry.DIR_FileSize)
+    {
+        size_t copy_len = SIZE_1K * 256;
+        if((src_entry.entry.DIR_FileSize - copied_size) < copy_len){
+            copy_len = src_entry.entry.DIR_FileSize - copied_size;
+        }
+        if(fat32_read(interface, src_path, copied_size, copy_len, buf) != SUCCESS){
+                udbP("FAT ERROR: Failed to copy! H0");
+                return FAIL;
+        }
+        if(fat32_write(interface, src_path, copied_size, copy_len, buf) != SUCCESS){
+                udbP("FAT ERROR: Failed to copy! H0");
+                return FAIL;
+        }
+        copied_size += copy_len;
+    }
+
+    return SUCCESS;
+}
+
+uos_result fat32_move(u_fs_interface* interface, const wide_char_t* src_path, const wide_char_t* dst_path){
+    fat32_instance* inst = fat32_find_instance(interface->partition);
+    if(inst == nullptr){
+        udbP("FAT ERROR: File system interface error!");
+        return FAIL;
+    }
+
+    fat32_dir_entry root_dir = {};
+    fat32_get_root_dir_virt_entry(inst, &root_dir);
+
+    // src entry
+    fat32_entry_result src_entry = {};
+    fat32_entry_result parent_entry = {};
+    memcpy(&(parent_entry.entry), &root_dir, sizeof(fat32_dir_entry));
+    memcpy(&(src_entry.entry), &root_dir, sizeof(fat32_dir_entry));
+
+    uint64_t src_up_dir_count = w_parse_read_count(src_path, '/');
+
+    wide_char_t src_read_part[256];
+    for(size_t i = 0; i < src_up_dir_count; i++){
+        w_parse_read(src_read_part, src_path, '/', i);
+
+        if(src_read_part[0] == '\0'){
+            continue; // empty skip
+        }else{
+            parent_entry = src_entry;
+            src_entry = fat32_find_entry(inst, &(src_entry.entry), src_read_part, "");
+            if(src_entry.entry.DIR_Name[0] == FAT32_DIR_ENTRY_FREE){
+                udbP("FAT ERROR: Source entry not found!");
+                return FAIL;
+            }
+        }
+    }
+    fat32_dir_entry src_parent = {};
+    memcpy(&src_parent, &(parent_entry.entry), sizeof(fat32_dir_entry));
+
+    if(src_entry.entry.DIR_Attr & FAT32_ATTR_DIRECTORY_BIT){
+        udbP("FAT ERROR: Moving directories is not implemented! Use manuel solutions.");
+        return FAIL;
+    }
+
+    // dst dir
+    _separated_path sep_dst_path = separate_path(dst_path);
+    if(sep_dst_path.file_name == nullptr || sep_dst_path.path == nullptr){
+        if(sep_dst_path.file_name != nullptr){
+            kfree(sep_dst_path.file_name);
+        }
+        if(sep_dst_path.path != nullptr){
+            kfree(sep_dst_path.path);
+        }
+        udbP("FAT ERROR: Failed to parse path!");
+        return FAIL;
+    }
+
+    fat32_entry_result dst_dir_entry = {};
+    memcpy(&(parent_entry.entry), &root_dir, sizeof(fat32_dir_entry));
+    memcpy(&(dst_dir_entry.entry), &root_dir, sizeof(fat32_dir_entry));
+
+    uint64_t dst_dir_up_dir_count = w_parse_read_count(sep_dst_path.path, '/');
+
+    wide_char_t dst_dir_read_part[256];
+    for(size_t i = 0; i < dst_dir_up_dir_count; i++){
+        w_parse_read(dst_dir_read_part, sep_dst_path.path, '/', i);
+
+        if(dst_dir_read_part[0] == '\0'){
+            continue; // empty skip
+        }else{
+            parent_entry = dst_dir_entry;
+            dst_dir_entry = fat32_find_entry(inst, &(dst_dir_entry.entry), dst_dir_read_part, "");
+            if(dst_dir_entry.entry.DIR_Name[0] == FAT32_DIR_ENTRY_FREE){
+                udbP("FAT ERROR: Source entry not found!");
+                kfree(sep_dst_path.file_name);
+                kfree(sep_dst_path.path);
+                return FAIL;
+            }
+        }
+    }
+    fat32_dir_entry dst_dir_parent = {};
+    memcpy(&dst_dir_parent, &(parent_entry.entry), sizeof(fat32_dir_entry));
+
+    uint32_t cluster = ((uint32_t)src_entry.entry.DIR_FstClusLO & 0xFFFF) || (((uint32_t)src_entry.entry.DIR_FstClusHI >> 16) & 0xFFFF);
+    if(fat32_create_dir_entry(inst, parent_entry, sep_dst_path.file_name, "", src_entry.entry.DIR_Attr, cluster, src_entry.entry.DIR_FileSize) != SUCCESS){
+        udbP("FAT ERROR: Failed to move! H0");
+        kfree(sep_dst_path.file_name);
+        kfree(sep_dst_path.path);
+        return FAIL;
+    }
+
+    if(fat32_delete_entry(inst, &src_parent, src_entry.index_in_dir_list) != SUCCESS){
+        udbP("FAT ERROR: Failed to move! H1");
+        kfree(sep_dst_path.file_name);
+        kfree(sep_dst_path.path);
+        return FAIL;
+    }
+
+    kfree(sep_dst_path.file_name);
+    kfree(sep_dst_path.path);
+    return SUCCESS;
+}
+
+uos_result fat32_resize_file(u_fs_interface* interface, const wide_char_t* file_path, size_t new_size){
+    if(new_size > (SIZE_1G * 4)){
+        udbP("FAT ERROR: A file can not be larger than 4gb!");
+        return FAIL;
+    }
+
+    fat32_instance* inst = fat32_find_instance(interface->partition);
+    if(inst == nullptr){
+        udbP("FAT ERROR: File system interface error!");
+        return FAIL;
+    }
+
+    // find entry
+    fat32_dir_entry root_dir = {};
+    fat32_get_root_dir_virt_entry(inst, &root_dir);
+
+    fat32_entry_result file_entry = {};
+    memcpy(&(file_entry.entry), &root_dir, sizeof(fat32_dir_entry));
+
+    uint64_t up_dir_count = w_parse_read_count(file_path, '/');
+
+    wide_char_t read_part[256];
+    for(size_t i = 0; i < up_dir_count; i++){
+        w_parse_read(read_part, file_path, '/', i);
+
+        if(read_part[0] == '\0'){
+            continue; // empty skip
+        }else{
+            file_entry = fat32_find_entry(inst, &(file_entry.entry), read_part, "");
+            if(file_entry.entry.DIR_Name[0] == FAT32_DIR_ENTRY_FREE){
+                udbP("FAT ERROR: File not found!");
+                return FAIL;
+            }
+        }
+    }
+
+    fat32_dir_entry parent = {};
+    memcpy(&parent, &(file_entry.entry), sizeof(fat32_dir_entry));
+
+    if(file_entry.entry.DIR_Attr & FAT32_ATTR_DIRECTORY_BIT){
+        udbP("FAT ERROR: Can not resize a directory!");
+        return FAIL;
+    }
+
+    if(file_entry.entry.DIR_FileSize == new_size){
+        return SUCCESS; // no resize required
+    }
+
+    uint32_t file_data_cluster_chain_start = (uint32_t)(file_entry.entry.DIR_FstClusLO) | ((uint32_t)file_entry.entry.DIR_FstClusHI << 16);
+
+    udevice_storage_function_pointers* stor_device =  _open_storage_device_(inst->storage_device);
+    if(stor_device == nullptr){
+        udbP("FAT STORAGE DEVICE ERROR: Can not open device!");
+        return FAIL;
+    }
+    fat32_cluster_chain ch = fat32_get_chain(inst, stor_device, file_data_cluster_chain_start);
+    size_t cluster_size = inst->bpb.sector_per_cluster * stor_device->get_lba_size();
+    size_t required_cluster_count = (new_size + cluster_size - 1) / cluster_size;
+
+    if(required_cluster_count == ch.chain_len){
+        // no cluster allocation needed
+        // just update file size & return
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+            return FAIL;
+        }
+        if(ch.chain != nullptr){
+            kfree(ch.chain);
+        }
+        file_entry.entry.DIR_FileSize = new_size;
+        if(fat32_update_entry(inst, &parent, file_entry.index_in_dir_list, &(file_entry.entry)) != SUCCESS){
+            udbP("FAT ERROR: Failed to update file entry! H0");
+            return FAIL;
+        }
+        return SUCCESS;
+    }
+
+    if(ch.chain_len < required_cluster_count){
+        // expand file
+        if(ch.chain != nullptr){
+            // chain exists
+            if(fat32_allocate_clusters(inst, stor_device, ch.chain[ch.chain_len - 1], nullptr, required_cluster_count - ch.chain_len, true) != SUCCESS){
+                udbP("FAT ERROR: Failed to expand file! H0");
+                if(uobject_close_object(inst->storage_device) == FAIL){
+                    udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+                }
+                kfree(ch.chain);
+                return FAIL;
+            }
+        }else{
+            // chain doesnt exists
+            if(fat32_allocate_clusters(inst, stor_device, FAT32_CLUSTER_FREE, &file_data_cluster_chain_start, required_cluster_count, true) != SUCCESS){
+                udbP("FAT ERROR: Failed to expand file! H1");
+                if(uobject_close_object(inst->storage_device) == FAIL){
+                    udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+                }
+                kfree(ch.chain);
+                return FAIL;
+            }
+        }
+        // expansion done
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+            return FAIL;
+        }
+        kfree(ch.chain);
+        file_entry.entry.DIR_FileSize = new_size;
+        file_entry.entry.DIR_FstClusLO = (file_data_cluster_chain_start & 0xFFFF);
+        file_entry.entry.DIR_FstClusHI = ((file_data_cluster_chain_start >> 16) & 0xFFFF);
+        if(fat32_update_entry(inst, &parent, file_entry.index_in_dir_list, &(file_entry.entry)) != SUCCESS){
+            udbP("FAT ERROR: Failed to update file entry! H1");
+            return FAIL;
+        }
+        return SUCCESS;
+    }else{
+        // shrink file
+        if(required_cluster_count == 0){
+            // free all
+            if(uobject_close_object(inst->storage_device) == FAIL){
+                udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+            }
+            kfree(ch.chain);
+            file_entry.entry.DIR_FileSize = new_size;
+            file_entry.entry.DIR_FstClusLO = 0;
+            file_entry.entry.DIR_FstClusHI = 0;
+            if(fat32_update_entry(inst, &parent, file_entry.index_in_dir_list, &(file_entry.entry)) != SUCCESS){
+                udbP("FAT ERROR: Failed to update file entry! H2");
+                return FAIL;
+            }
+            return SUCCESS;
+        }
+
+        if(ch.chain != nullptr){
+            // chain exists
+            if(fat32_free_clusters(inst, stor_device, ch.chain[required_cluster_count - 1], true) != SUCCESS){
+                udbP("FAT ERROR: Failed to shrink file! H0");
+                if(uobject_close_object(inst->storage_device) == FAIL){
+                    udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+                }
+                kfree(ch.chain);
+                return FAIL;
+            }
+        }else{
+            // chain doesnt exists
+            udbP("FAT ERROR: Failed to shrink file! H1");
+            if(uobject_close_object(inst->storage_device) == FAIL){
+                udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+            }
+            kfree(ch.chain);
+            return FAIL;
+        }
+        // shrinking done
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+            return FAIL;
+        }
+        kfree(ch.chain);
+        file_entry.entry.DIR_FileSize = new_size;
+        file_entry.entry.DIR_FstClusLO = (file_data_cluster_chain_start & 0xFFFF);
+        file_entry.entry.DIR_FstClusHI = ((file_data_cluster_chain_start >> 16) & 0xFFFF);
+        if(fat32_update_entry(inst, &parent, file_entry.index_in_dir_list, &(file_entry.entry)) != SUCCESS){
+            udbP("FAT ERROR: Failed to update file entry! H3");
+            return FAIL;
+        }
+        return SUCCESS;
+    }
+}
+
+uos_result fat32_read(u_fs_interface* interface, const wide_char_t* file_path, size_t read_offset, size_t read_len, void* read_buffer){
+    fat32_instance* inst = fat32_find_instance(interface->partition);
+    if(inst == nullptr){
+        udbP("FAT ERROR: File system interface error!");
+        return FAIL;
+    }
+
+    // find entry
+    fat32_dir_entry root_dir = {};
+    fat32_get_root_dir_virt_entry(inst, &root_dir);
+
+    fat32_entry_result file_entry = {};
+    memcpy(&(file_entry.entry), &root_dir, sizeof(fat32_dir_entry));
+
+    uint64_t up_dir_count = w_parse_read_count(file_path, '/');
+
+    wide_char_t read_part[256];
+    for(size_t i = 0; i < up_dir_count; i++){
+        w_parse_read(read_part, file_path, '/', i);
+
+        if(read_part[0] == '\0'){
+            continue; // empty skip
+        }else{
+            file_entry = fat32_find_entry(inst, &(file_entry.entry), read_part, "");
+            if(file_entry.entry.DIR_Name[0] == FAT32_DIR_ENTRY_FREE){
+                udbP("FAT ERROR: File not found!");
+                return FAIL;
+            }
+        }
+    }
+
+    fat32_dir_entry parent = {};
+    memcpy(&parent, &(file_entry.entry), sizeof(fat32_dir_entry));
+
+    if(file_entry.entry.DIR_Attr & FAT32_ATTR_DIRECTORY_BIT){
+        udbP("FAT ERROR: Can not read from a directory!");
+        return FAIL;
+    }
+
+    if((read_offset > file_entry.entry.DIR_FileSize) || (read_len > (file_entry.entry.DIR_FileSize - read_offset))){
+        udbP("FAT ERROR: Requested read area is out of bound!");
+        return FAIL;
+    }
+
+    if(read_len == 0){
+        return SUCCESS;
+    }
+
+    udevice_storage_function_pointers* stor_device =  _open_storage_device_(inst->storage_device);
+    if(stor_device == nullptr){
+        udbP("FAT STORAGE DEVICE ERROR: Can not open device!");
+        return FAIL;
+    }
+
+    uint32_t file_data_cluster_chain_start = (uint32_t)(file_entry.entry.DIR_FstClusLO) | ((uint32_t)file_entry.entry.DIR_FstClusHI << 16);
+    if(!FAT32_CHECK_IS_CLUSTER_ALLOCATED(file_data_cluster_chain_start)){
+        udbP("FAT ERROR: File have corrupted or invalid data clusters! Maybe file system is corrupted?");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        return FAIL;
+    }
+
+    fat32_cluster_chain ch = fat32_get_chain(inst, stor_device, file_data_cluster_chain_start);
+    if(ch.chain == nullptr){
+        udbP("FAT ERROR: Failed to get cluster chain for file data!");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        return FAIL;
+    }
+
+    uint32_t currently_read_cluster_idx = read_offset / (inst->bpb.sector_per_cluster * stor_device->get_lba_size());
+    if(ch.chain_len <= currently_read_cluster_idx){
+        udbP("FAT ERROR: Reading cluster is not in bound! Maybe file system is corrupted?");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        kfree(ch.chain);
+        return FAIL;
+    }
+
+    size_t bytes_read = 0;
+
+    uint8_t* current_cluster = kmalloc(stor_device->get_lba_size() * inst->bpb.sector_per_cluster); // cluster
+
+    // read
+    if(stor_device->read(inst->data_first_lba + ((ch.chain[currently_read_cluster_idx] - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, current_cluster) == FAIL){
+        udbP("FAT ERROR: Failed to read directory cluster!");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        kfree(current_cluster);
+        kfree(ch.chain);
+        return FAIL;
+    }
+
+    while (bytes_read != read_len)
+    {
+        size_t current_offset = read_offset + bytes_read;
+        uint32_t required_cluster_idx = current_offset / (inst->bpb.sector_per_cluster * stor_device->get_lba_size());
+        if(required_cluster_idx != currently_read_cluster_idx){
+            // read required
+            // no need to write back
+            currently_read_cluster_idx = required_cluster_idx;
+            if(ch.chain_len <= currently_read_cluster_idx){
+                udbP("FAT ERROR: Reading cluster is not in bound! Maybe file system is corrupted?");
+                if(uobject_close_object(inst->storage_device) == FAIL){
+                    udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+                }
+                kfree(current_cluster);
+                kfree(ch.chain);
+                return FAIL;
+            }
+
+            if(stor_device->read(inst->data_first_lba + ((ch.chain[currently_read_cluster_idx] - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, current_cluster) == FAIL){
+                udbP("FAT ERROR: Failed to read data cluster! D0");
+                if(uobject_close_object(inst->storage_device) == FAIL){
+                    udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+                }
+                kfree(current_cluster);
+                kfree(ch.chain);
+                return FAIL;
+            }
+        }
+
+        size_t in_cluster_offset = current_offset % (inst->bpb.sector_per_cluster * stor_device->get_lba_size());
+        size_t read_size = (inst->bpb.sector_per_cluster * stor_device->get_lba_size()) - in_cluster_offset;
+        if((read_len - bytes_read) < read_size){
+            read_size = (read_len - bytes_read);
+        }
+        memcpy((uint8_t*)(read_buffer) + bytes_read, current_cluster + in_cluster_offset, read_size);
+        bytes_read += read_size;
+    }
+    
+    kfree(current_cluster);
+    kfree(ch.chain);
+    if(uobject_close_object(inst->storage_device) == FAIL){
+        udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        return FAIL;
+    }
+    return SUCCESS;
+}
+
+uos_result fat32_write(u_fs_interface* interface, const wide_char_t* file_path, size_t write_offset, size_t write_len, void* write_buffer){ 
+    fat32_instance* inst = fat32_find_instance(interface->partition);
+    if(inst == nullptr){
+        udbP("FAT ERROR: File system interface error!");
+        return FAIL;
+    }
+
+    u_fs_file_info info = fat32_read_info(interface, file_path);
+
+    if(!(info.flags & FSI_FLAG_DIRECTORY_BIT)){
+        if(info.flags & FSI_FLAG_RO_BIT){
+            udbP("FAT ERROR: File is read only!");
+            return FAIL;
+        }
+
+        if((write_offset > info.file_size) || (write_len > (info.file_size - write_offset))){
+            // resize file
+            if(resize_file(file_path, (write_offset + write_len)) != SUCCESS){
+                udbP("FAT ERROR: Can not resize the file!");
+                return FAIL;
+            }
+        }
+    }else{
+        udbP("FAT ERROR: Can not write to a directory!");
+        return FAIL;
+    }
+
+    // find entry
+    fat32_dir_entry root_dir = {};
+    fat32_get_root_dir_virt_entry(inst, &root_dir);
+
+    fat32_entry_result file_entry = {};
+    memcpy(&(file_entry.entry), &root_dir, sizeof(fat32_dir_entry));
+
+    uint64_t up_dir_count = w_parse_read_count(file_path, '/');
+
+    wide_char_t read_part[256];
+    for(size_t i = 0; i < up_dir_count; i++){
+        w_parse_read(read_part, file_path, '/', i);
+
+        if(read_part[0] == '\0'){
+            continue; // empty skip
+        }else{
+            file_entry = fat32_find_entry(inst, &(file_entry.entry), read_part, "");
+            if(file_entry.entry.DIR_Name[0] == FAT32_DIR_ENTRY_FREE){
+                udbP("FAT ERROR: File not found!");
+                return FAIL;
+            }
+        }
+    }
+
+    fat32_dir_entry parent = {};
+    memcpy(&parent, &(file_entry.entry), sizeof(fat32_dir_entry));
+
+    if(file_entry.entry.DIR_Attr & FAT32_ATTR_DIRECTORY_BIT){
+        udbP("FAT ERROR: Can not read from a directory!");
+        return FAIL;
+    }
+
+    if(write_len == 0){
+        return SUCCESS;
+    }
+
+    udevice_storage_function_pointers* stor_device =  _open_storage_device_(inst->storage_device);
+    if(stor_device == nullptr){
+        udbP("FAT STORAGE DEVICE ERROR: Can not open device!");
+        return FAIL;
+    }
+
+    uint32_t file_data_cluster_chain_start = (uint32_t)(file_entry.entry.DIR_FstClusLO) | ((uint32_t)file_entry.entry.DIR_FstClusHI << 16);
+    if(!FAT32_CHECK_IS_CLUSTER_ALLOCATED(file_data_cluster_chain_start)){
+        udbP("FAT ERROR: File have corrupted or invalid data clusters! Maybe file system is corrupted?");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        return FAIL;
+    }
+
+    fat32_cluster_chain ch = fat32_get_chain(inst, stor_device, file_data_cluster_chain_start);
+    if(ch.chain == nullptr){
+        udbP("FAT ERROR: Failed to get cluster chain for file data!");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        return FAIL;
+    }
+
+    uint32_t currently_read_cluster_idx = write_offset / (inst->bpb.sector_per_cluster * stor_device->get_lba_size());
+    if(ch.chain_len <= currently_read_cluster_idx){
+        udbP("FAT ERROR: Writing cluster is not in bound! Maybe file system is corrupted?");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        kfree(ch.chain);
+        return FAIL;
+    }
+
+    size_t bytes_wrote = 0;
+
+    uint8_t* current_cluster = kmalloc(stor_device->get_lba_size() * inst->bpb.sector_per_cluster); // cluster
+
+    // read
+    if(stor_device->read(inst->data_first_lba + ((ch.chain[currently_read_cluster_idx] - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, current_cluster) == FAIL){
+        udbP("FAT ERROR: Failed to read data cluster!");
+        if(uobject_close_object(inst->storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
+        kfree(current_cluster);
+        kfree(ch.chain);
+        return FAIL;
+    }
+
+    while (bytes_wrote != write_len)
+    {
+        size_t current_offset = write_offset + bytes_wrote;
+        uint32_t required_cluster_idx = current_offset / (inst->bpb.sector_per_cluster * stor_device->get_lba_size());
+
+        size_t cluster_size = inst->bpb.sector_per_cluster * stor_device->get_lba_size();
+        size_t in_cluster_offset = current_offset % cluster_size;
+        size_t write_size = cluster_size - in_cluster_offset;
+        size_t remaining = write_len - bytes_wrote;
+
+        if (write_size > remaining) {
+            write_size = remaining;
+        }
+
+        if((required_cluster_idx != currently_read_cluster_idx ) && ((in_cluster_offset != 0) || (write_size < ((inst->bpb.sector_per_cluster * stor_device->get_lba_size()) - in_cluster_offset)))){
+            // read if writing part is not bounding all of cluster
+            currently_read_cluster_idx = required_cluster_idx;
+            if(ch.chain_len <= currently_read_cluster_idx){
+                udbP("FAT ERROR: Writing cluster is not in bound! Maybe file system is corrupted?");
+                if(uobject_close_object(inst->storage_device) == FAIL){
+                    udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+                }
+                kfree(current_cluster);
+                kfree(ch.chain);
+                return FAIL;
+            }
+
+            if(stor_device->read(inst->data_first_lba + ((ch.chain[currently_read_cluster_idx] - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, current_cluster) == FAIL){
+                udbP("FAT ERROR: Failed to read data cluster! D0");
+                if(uobject_close_object(inst->storage_device) == FAIL){
+                    udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+                }
+                kfree(current_cluster);
+                kfree(ch.chain);
+                return FAIL;
+            }
+        }
+        currently_read_cluster_idx = required_cluster_idx;
+
+        memcpy(current_cluster + in_cluster_offset, (uint8_t*)(write_buffer) + bytes_wrote, write_size);
+        bytes_wrote += write_size;
+
+        // write
+        if(stor_device->write(inst->data_first_lba + ((ch.chain[currently_read_cluster_idx] - 2) * inst->bpb.sector_per_cluster), inst->bpb.sector_per_cluster, current_cluster) == FAIL){
+            udbP("FAT ERROR: Failed to write data cluster! D0");
+            if(uobject_close_object(inst->storage_device) == FAIL){
+                udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+            }
+            kfree(current_cluster);
+            kfree(ch.chain);
+            return FAIL;
+        }
+    }
+    
+    kfree(current_cluster);
+    kfree(ch.chain);
+    if(uobject_close_object(inst->storage_device) == FAIL){
+        udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        return FAIL;
+    }
+    return SUCCESS;
+}
+
+uos_result mount_fat32_partition(partition_info partition, uobject_ref storage_device){
+    udevice_storage_function_pointers* stor_device = _open_storage_device_(storage_device);
+
+    if(stor_device == nullptr){
+        return FAIL;
+    }
+
+    if(stor_device->get_lba_size() != 512){
+        udbP("FAT STORAGE DEVICE ERROR: THis driver is not safe for sector size smaller than 512!");
+        if(uobject_close_object(storage_device) == FAIL){
+            udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
+        }
         return FAIL;
     }
 
@@ -1720,7 +3106,7 @@ uos_result mount_fat32_partition(partition_info partition, uobject_ref storage_d
     inst.storage_device = storage_device;
     inst.partition = partition;
 
-    if(emmc->common.read(partition.start_lba + 0, 1, (uint8_t*)(&inst.bpb)) == FAIL){
+    if(stor_device->read(partition.start_lba + 0, 1, (uint8_t*)(&inst.bpb)) == FAIL){
         udbP("FAT ERROR: Failed to read FAT header!");
         if(uobject_close_object(storage_device) == FAIL){
             udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
@@ -1728,7 +3114,7 @@ uos_result mount_fat32_partition(partition_info partition, uobject_ref storage_d
         return FAIL;
     }
 
-    if(emmc->common.read(partition.start_lba + inst.bpb.BPB_FSInfo, 1, (uint8_t*)(&inst.FSInfo)) == FAIL){
+    if(stor_device->read(partition.start_lba + inst.bpb.BPB_FSInfo, 1, (uint8_t*)(&inst.FSInfo)) == FAIL){
         udbP("FAT ERROR: Failed to read FSInfo header!");
         if(uobject_close_object(storage_device) == FAIL){
             udbP("FAT STORAGE DEVICE ERROR: Failed to close storage device!");
@@ -1756,12 +3142,14 @@ uos_result mount_fat32_partition(partition_info partition, uobject_ref storage_d
     // set functions
     fat32_fsi.create = fat32_create_file;
     fat32_fsi.create_dir = fat32_create_dir;
-    fat32_fsi.delete = nullptr;
-    fat32_fsi.read_file_info = nullptr;
-    fat32_fsi.read = nullptr;
-    fat32_fsi.write = nullptr;
-    fat32_fsi.repair_fs = nullptr;
-    fat32_fsi.rename = nullptr;
+    fat32_fsi.delete = fat32_delete;
+    fat32_fsi.read_info = fat32_read_info;
+    fat32_fsi.read = fat32_read;
+    fat32_fsi.write = fat32_write;
+    fat32_fsi.repair_fs = fat32_repair_fs;
+    fat32_fsi.copy = fat32_copy;
+    fat32_fsi.move = fat32_move;
+    fat32_fsi.resize_file = fat32_resize_file;
     fat32_fsi.get_childs = fat32_get_childs;
 
     uobject_ref obj = uobject_create_fsi(partition.name, 0, fat32_fsi);

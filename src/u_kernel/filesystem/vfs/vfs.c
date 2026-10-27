@@ -1,6 +1,7 @@
 #include <u_kernel/filesystem/vfs/vfs.h>
 #include <u_kernel/util/u_cstr_util.h>
 #include <u_kernel/util/u_ctypes.h>
+#include <u_kernel/objects/fsi/fsi.h>
 
 vfs_entry root;
 
@@ -331,8 +332,8 @@ uos_result vfs_mount_gpt_partitions(uobject_ref storage_device_obj){
 }
 
 // filesystem endpoint functions
-uos_result create_file(const wide_char_t* parent, const wide_char_t* file_name){
-    filesystem_call_info call_info = vfs_find_fsi_entry(parent);
+uos_result create_file(const wide_char_t* path){
+    filesystem_call_info call_info = vfs_find_fsi_entry(path);
     if(call_info.call_path == nullptr || call_info.fsi_file == nullptr){
         udbP("VFS FSI ERROR: Filesystem not found!");
         if(call_info.call_path != nullptr){
@@ -348,7 +349,23 @@ uos_result create_file(const wide_char_t* parent, const wide_char_t* file_name){
         return FAIL;
     }
 
-    uos_result op_res = fs->create(fs, call_info.call_path, file_name);
+    _separated_path sep_path = separate_path(call_info.call_path);
+    if(sep_path.file_name == nullptr || sep_path.path == nullptr){
+        if(sep_path.file_name != nullptr){
+            kfree(sep_path.file_name);
+        }
+        if(sep_path.path != nullptr){
+            kfree(sep_path.path);
+        }
+        udbP("VFS FSI ERROR: Failed to parse path!");
+        kfree(call_info.call_path);
+        return FAIL;
+    }
+
+    uos_result op_res = fs->create(fs, sep_path.path, sep_path.file_name);
+    
+    kfree(sep_path.file_name);
+    kfree(sep_path.path);
 
     if(uobject_close_object(call_info.fsi_file->obj_ref) != SUCCESS){
         udbP("VFS FSI ERROR: Failed to close filesystem interface!");
@@ -360,8 +377,8 @@ uos_result create_file(const wide_char_t* parent, const wide_char_t* file_name){
     return op_res;
 }
 
-uos_result create_directory(const wide_char_t* parent, const wide_char_t* dir_name){
-    filesystem_call_info call_info = vfs_find_fsi_entry(parent);
+uos_result create_directory(const wide_char_t* path){
+    filesystem_call_info call_info = vfs_find_fsi_entry(path);
     if(call_info.call_path == nullptr || call_info.fsi_file == nullptr){
         udbP("VFS FSI ERROR: Filesystem not found!");
         if(call_info.call_path == nullptr ){
@@ -380,7 +397,22 @@ uos_result create_directory(const wide_char_t* parent, const wide_char_t* dir_na
         return FAIL;
     }
 
-    uos_result op_res = fs->create_dir(fs, call_info.call_path, dir_name);
+    _separated_path sep_path = separate_path(call_info.call_path);
+    if(sep_path.file_name == nullptr || sep_path.path == nullptr){
+        if(sep_path.file_name != nullptr){
+            kfree(sep_path.file_name);
+        }
+        if(sep_path.path != nullptr){
+            kfree(sep_path.path);
+        }
+        udbP("VFS FSI ERROR: Failed to parse path!");
+        kfree(call_info.call_path);
+        return FAIL;
+    }
+
+    uos_result op_res = fs->create_dir(fs, sep_path.path, sep_path.file_name);
+    kfree(sep_path.file_name);
+    kfree(sep_path.path);
 
     if(uobject_close_object(call_info.fsi_file->obj_ref) != SUCCESS){
         udbP("VFS FSI ERROR: Failed to close filesystem interface!");
@@ -392,8 +424,8 @@ uos_result create_directory(const wide_char_t* parent, const wide_char_t* dir_na
     return op_res;
 }
 
-uos_result delete_file(const wide_char_t* file_path){
-    filesystem_call_info call_info = vfs_find_fsi_entry(file_path);
+uos_result delete(const wide_char_t* path){
+    filesystem_call_info call_info = vfs_find_fsi_entry(path);
     if(call_info.call_path == nullptr || call_info.fsi_file == nullptr){
         udbP("VFS FSI ERROR: Filesystem not found!");
         if(call_info.call_path != nullptr){
@@ -421,9 +453,10 @@ uos_result delete_file(const wide_char_t* file_path){
     return op_res;
 }
 
-u_fs_file_info read_file_info(const wide_char_t* file_path){
-    filesystem_call_info call_info = vfs_find_fsi_entry(file_path);
+u_fs_file_info read_info(const wide_char_t* path){
+    filesystem_call_info call_info = vfs_find_fsi_entry(path);
     u_fs_file_info op_res = {};
+    op_res.flags = FSI_FLAG_INVALID_BIT;
     if(call_info.call_path == nullptr || call_info.fsi_file == nullptr){
         udbP("VFS FSI ERROR: Filesystem not found!");
         if(call_info.call_path != nullptr){
@@ -439,7 +472,7 @@ u_fs_file_info read_file_info(const wide_char_t* file_path){
         return op_res;
     }
 
-    op_res = fs->read_file_info(fs, call_info.call_path);
+    op_res = fs->read_info(fs, call_info.call_path);
 
     if(uobject_close_object(call_info.fsi_file->obj_ref) != SUCCESS){
         udbP("VFS FSI ERROR: Failed to close filesystem interface!");
@@ -509,10 +542,222 @@ uos_result write(const wide_char_t* file_path, size_t write_offset, size_t write
     return op_res;
 }
 
-uos_result rename(const wide_char_t* file_path, const wide_char_t* new_name){
+uos_result copy(const wide_char_t* src_path, const wide_char_t* dst_path){
+    filesystem_call_info src_call_info = vfs_find_fsi_entry(src_path);
+    if(src_call_info.call_path == nullptr || src_call_info.fsi_file == nullptr){
+        udbP("VFS FSI ERROR: Source filesystem not found!");
+        if(src_call_info.call_path != nullptr){
+            kfree(src_call_info.call_path);
+        }
+        return FAIL;
+    }
+
+    filesystem_call_info dst_call_info = vfs_find_fsi_entry(dst_path);
+    if(dst_call_info.call_path == nullptr || dst_call_info.fsi_file == nullptr){
+        udbP("VFS FSI ERROR: Destination filesystem not found!");
+        if(src_call_info.call_path != nullptr){
+            kfree(src_call_info.call_path);
+        }
+        if(dst_call_info.call_path != nullptr){
+            kfree(dst_call_info.call_path);
+        }
+        return FAIL;
+    }
+
+    if(src_call_info.fsi_file->obj_ref == dst_call_info.fsi_file->obj_ref){
+        // copy in same filesystem instance
+        u_fs_interface* src_fs = _open_filesystem_interface_(src_call_info.fsi_file->obj_ref);
+        if(src_fs == nullptr){
+            udbP("VFS FSI ERROR: Failed to open source filesystem interface!");
+            if(src_call_info.call_path != nullptr){
+                kfree(src_call_info.call_path);
+            }
+            if(dst_call_info.call_path != nullptr){
+                kfree(dst_call_info.call_path);
+            }
+            return FAIL;
+        }
+
+        uos_result op_res = src_fs->copy(src_fs, src_call_info.call_path, dst_call_info.call_path);
+
+        if(uobject_close_object(src_call_info.fsi_file->obj_ref) != SUCCESS){
+            udbP("VFS FSI ERROR: Failed to close filesystem interface!");
+            kfree(src_call_info.call_path);
+            kfree(dst_call_info.call_path);
+            return FAIL;
+        }
+
+        kfree(src_call_info.call_path);
+        kfree(dst_call_info.call_path);
+        return op_res;
+    }else{
+        // copy in different filesystem
+        
+        u_fs_file_info src_info = read_info(src_path);
+        if(src_info.flags & FSI_FLAG_INVALID_BIT){
+            if(src_call_info.call_path != nullptr){
+                kfree(src_call_info.call_path);
+            }
+            if(dst_call_info.call_path != nullptr){
+                kfree(dst_call_info.call_path);
+            }
+            udbP("VFS FSI ERROR: Source file is invalid!");
+            return FAIL;
+        }
+
+        if(src_info.flags & FSI_FLAG_DIRECTORY_BIT){
+            // NOTE: COPYING DIRECTORIES BETWEEN DIFFERENT FILESYSTEM INSTANCES IS NOT ALLOWED
+            udbP("VFS FSI ERROR: Copying directories between filesystems is not allowed! NOTE: Use manuel solutions.");
+            if(src_call_info.call_path != nullptr){
+                kfree(src_call_info.call_path);
+            }
+            if(dst_call_info.call_path != nullptr){
+                kfree(dst_call_info.call_path);
+            }
+            return FAIL;
+        }else{
+            uint8_t* buf = kmalloc(SIZE_1K * 256); // 256kb buffer for copying file
+            size_t remaining_size = src_info.file_size;
+
+            if(create_file(dst_path) != SUCCESS){
+                kfree(src_call_info.call_path);
+                kfree(dst_call_info.call_path);
+                kfree(buf);
+                udbP("VFS FSI ERROR: Failed to copy! H0");
+                return FAIL;
+            }
+
+            while (remaining_size)
+            {
+                size_t read_size = (SIZE_1K * 256);
+                if(remaining_size < (SIZE_1K * 256)){
+                    read_size = remaining_size;
+                }
+
+                // read
+                if(read(src_path, src_info.file_size - remaining_size, read_size, buf) != SUCCESS){
+                    kfree(src_call_info.call_path);
+                    kfree(dst_call_info.call_path);
+                    kfree(buf);
+                    udbP("VFS FSI ERROR: Failed to copy! H1");
+                    return FAIL;
+                }
+
+                // write
+                if(write(dst_path, src_info.file_size - remaining_size, read_size, buf) != SUCCESS){
+                    kfree(src_call_info.call_path);
+                    kfree(dst_call_info.call_path);
+                    kfree(buf);
+                    udbP("VFS FSI ERROR: Failed to copy! H2");
+                    return FAIL;
+                }
+                remaining_size -= read_size;
+            }
+
+            kfree(src_call_info.call_path);
+            kfree(dst_call_info.call_path);
+            kfree(buf);
+            return SUCCESS;
+        }
+    }
+}
+
+uos_result move(const wide_char_t* src_path, const wide_char_t* dst_path){
+    filesystem_call_info src_call_info = vfs_find_fsi_entry(src_path);
+    if(src_call_info.call_path == nullptr || src_call_info.fsi_file == nullptr){
+        udbP("VFS FSI ERROR: Source filesystem not found!");
+        if(src_call_info.call_path != nullptr){
+            kfree(src_call_info.call_path);
+        }
+        return FAIL;
+    }
+
+    filesystem_call_info dst_call_info = vfs_find_fsi_entry(dst_path);
+    if(dst_call_info.call_path == nullptr || dst_call_info.fsi_file == nullptr){
+        udbP("VFS FSI ERROR: Destination filesystem not found!");
+        if(src_call_info.call_path != nullptr){
+            kfree(src_call_info.call_path);
+        }
+        if(dst_call_info.call_path != nullptr){
+            kfree(dst_call_info.call_path);
+        }
+        return FAIL;
+    }
+
+    if(src_call_info.fsi_file->obj_ref == dst_call_info.fsi_file->obj_ref){
+        // move in same filesystem instance
+        u_fs_interface* src_fs = _open_filesystem_interface_(src_call_info.fsi_file->obj_ref);
+        if(src_fs == nullptr){
+            udbP("VFS FSI ERROR: Failed to open source filesystem interface!");
+            if(src_call_info.call_path != nullptr){
+                kfree(src_call_info.call_path);
+            }
+            if(dst_call_info.call_path != nullptr){
+                kfree(dst_call_info.call_path);
+            }
+            return FAIL;
+        }
+
+        uos_result op_res = src_fs->move(src_fs, src_call_info.call_path, dst_call_info.call_path);
+
+        if(uobject_close_object(src_call_info.fsi_file->obj_ref) != SUCCESS){
+            udbP("VFS FSI ERROR: Failed to close filesystem interface!");
+            kfree(src_call_info.call_path);
+            kfree(dst_call_info.call_path);
+            return FAIL;
+        }
+
+        kfree(src_call_info.call_path);
+        kfree(dst_call_info.call_path);
+        return op_res;
+    }else{
+        // move in different filesystem
+        
+        u_fs_file_info src_info = read_info(src_path);
+        if(src_info.flags & FSI_FLAG_INVALID_BIT){
+            if(src_call_info.call_path != nullptr){
+                kfree(src_call_info.call_path);
+            }
+            if(dst_call_info.call_path != nullptr){
+                kfree(dst_call_info.call_path);
+            }
+            udbP("VFS FSI ERROR: Source file is invalid!");
+            return FAIL;
+        }
+
+        if(src_info.flags & FSI_FLAG_DIRECTORY_BIT){
+            // NOTE: MOVING DIRECTORIES BETWEEN DIFFERENT FILESYSTEM INSTANCES IS NOT ALLOWED
+            udbP("VFS FSI ERROR: Moving directories between filesystems is not allowed! NOTE: Use manuel solutions.");
+            if(src_call_info.call_path != nullptr){
+                kfree(src_call_info.call_path);
+            }
+            if(dst_call_info.call_path != nullptr){
+                kfree(dst_call_info.call_path);
+            }
+            return FAIL;
+        }else{
+            // this are not used after here
+            kfree(src_call_info.call_path);
+            kfree(dst_call_info.call_path);
+
+            // first copy to destination
+            if(copy(src_path, dst_path) == SUCCESS){
+                // delete old one
+                return delete(src_path);
+            }else{
+                return FAIL;
+            }
+        }
+    }
+}
+
+uos_result resize_file(const wide_char_t* file_path, size_t new_size){
     filesystem_call_info call_info = vfs_find_fsi_entry(file_path);
     if(call_info.call_path == nullptr || call_info.fsi_file == nullptr){
         udbP("VFS FSI ERROR: Filesystem not found!");
+        if(call_info.call_path == nullptr ){
+            udbP("zorortortrotror");
+        }
         if(call_info.call_path != nullptr){
             kfree(call_info.call_path);
         }
@@ -526,14 +771,14 @@ uos_result rename(const wide_char_t* file_path, const wide_char_t* new_name){
         return FAIL;
     }
 
-    uos_result op_res = fs->rename(fs, call_info.call_path, new_name);
+    uos_result op_res = fs->resize_file(fs, call_info.call_path, new_size);
 
     if(uobject_close_object(call_info.fsi_file->obj_ref) != SUCCESS){
         udbP("VFS FSI ERROR: Failed to close filesystem interface!");
         kfree(call_info.call_path);
         return FAIL;
     }
-
+    
     kfree(call_info.call_path);
     return op_res;
 }
@@ -566,3 +811,4 @@ uos_result get_dir_childs(const wide_char_t* dir_path, wide_char_t*** child_name
     kfree(call_info.call_path);
     return op_res;
 }
+

@@ -158,17 +158,17 @@ void main()
 
 		udbP("creating test folders & files");
 
-		create_directory(u"/mounts/uBOOT/", u"osurdum gio");
-		create_directory(u"/mounts/uBOOT/osurdum gio/", u"sıçış");
-		create_file(u"/mounts/uBOOT/osurdum gio/sıçış/", u"ğıÖlü dosya2231.şşş");
-		create_file(u"/mounts/uBOOT/osurdum gio/", u"ğıÖlü dosya.şşş");
+		create_directory(u"/mounts/uBOOT/osurdum gio");
+		create_directory(u"/mounts/uBOOT/osurdum gio/bru");
+		create_file(u"/mounts/uBOOT/osurdum gio/bru/ğıÖlü dosya2231.şşş");
+		create_file(u"/mounts/uBOOT/osurdum gio/ğıÖlü dosya.şşş");
 
-		create_directory(u"/mounts/uBOOT/", u"ĞĞĞÜğüĞÜĞ");
-		create_directory(u"/mounts/uBOOT/ĞĞĞÜğüĞÜĞ/", u"osirik be AĞDAWEÜTX");
-		create_file(u"/mounts/uBOOT/ĞĞĞÜğüĞÜĞ/", u"osur.ğxğ");
-		create_file(u"/mounts/uBOOT/ĞĞĞÜğüĞÜĞ/osirik be AĞDAWEÜTX/", u"glulggulŞOŞGĞIÜ.OŞŞ");
+		create_directory(u"/mounts/uBOOT/ĞĞĞÜğüĞÜĞ");
+		create_directory(u"/mounts/uBOOT/ĞĞĞÜğüĞÜĞ/osirik be AĞDAWEÜTX");
+		create_file(u"/mounts/uBOOT/ĞĞĞÜğüĞÜĞ/osur.ğxğ");
+		create_file(u"/mounts/uBOOT/ĞĞĞÜğüĞÜĞ/osirik be AĞDAWEÜTX/glulggulŞOŞGĞIÜ.OŞŞ");
 
-		create_file(u"/mounts/uBOOT/", u"glulggulŞOŞGĞIÜ.OŞŞ");
+		create_file(u"/mounts/uBOOT/glulggulŞOŞGĞIÜ.OŞŞ");
 		
 		
 		wide_char_t** child_names = nullptr;

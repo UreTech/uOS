@@ -36,3 +36,12 @@ int wstrcmp(const wide_char_t *str0, const wide_char_t *str1);
 // wide string convertion
 void char_to_utf16_buf(const char* _char, wide_char_t* _wchar);
 void utf16_to_char_buf(const wide_char_t* _wchar, char* _char);
+
+// separates last entry from rest
+typedef struct
+{
+    const wide_char_t* path;
+    const wide_char_t* file_name;
+}_separated_path;
+
+_separated_path separate_path(const wide_char_t* path); // NOTE: DO NOT FORGET TO FREE OUTPUT

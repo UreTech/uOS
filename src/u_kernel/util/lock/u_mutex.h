@@ -113,6 +113,36 @@ static inline void u_mutex_lock(u_mutex *m, uint64_t me)
 						 : "memory"); // Compiler barrier
 }
 
+// --- lock (spin + WFE) ---
+// this mutex allowes recursive locking
+static inline void u_mutex_lock_rec(u_mutex *m, uint64_t me)
+{
+	if (m->owner == me)
+	{
+		return;
+	}
+
+	while (!u_mutex_try_lock(m, me))
+	{
+		/*
+		uart_print("Still waiting lock...\n");
+		uart_print("me: ");
+		uart_print_dec(me);
+		uart_print("\n");
+		uart_print("owner: ");
+		uart_print_dec(m->owner);
+		uart_print("\n");
+*/
+
+		u_yield();
+		//__asm__ volatile("wfe" ::
+		//	 : "memory");
+	}
+
+	__asm__ volatile("" ::
+						 : "memory"); // Compiler barrier
+}
+
 // --- unlock ---
 static inline void u_mutex_unlock(u_mutex *m, uint64_t me)
 {
@@ -147,6 +177,13 @@ static inline void u_mutex_lock_el1(u_mutex *m)
 	u_mutex_lock(m, me);
 }
 
+// this mutex allowes recursive locking
+static inline void u_mutex_lock_rec_el1(u_mutex *m)
+{
+	uint64_t me = get_owner_id_el1();
+	u_mutex_lock_rec(m, me);
+}
+
 static inline void u_mutex_unlock_el1(u_mutex *m)
 {
 	uint64_t me = get_owner_id_el1();
@@ -165,6 +202,13 @@ static inline void u_mutex_lock_el0(u_mutex *m)
 {
 	uint64_t me = get_owner_id_el0();
 	u_mutex_lock(m, me);
+}
+
+// this mutex allowes recursive locking
+static inline void u_mutex_lock_rec_el0(u_mutex *m)
+{
+	uint64_t me = get_owner_id_el0();
+	u_mutex_lock_rec(m, me);
 }
 
 static inline void u_mutex_unlock_el0(u_mutex *m)

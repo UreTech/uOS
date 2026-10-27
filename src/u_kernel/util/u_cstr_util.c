@@ -398,3 +398,28 @@ void utf16_to_char_buf(const wide_char_t* _wchar, char* _char){
         _char[i] = (unsigned char)_wchar[i];
     }
 }
+
+_separated_path separate_path(const wide_char_t* path){
+	_separated_path result;
+	result.file_name = nullptr;
+	result.path = nullptr;
+
+	wide_char_t* buf = kmalloc((wstrlen(path, 1024) + 1) * sizeof(wide_char_t));
+
+	size_t entry_count =  w_parse_read_count(path, '/');
+
+	if(entry_count == 0){
+		return result;
+	}
+
+	w_parse_read_multiple(buf, path, '/', 0, entry_count - 1);
+	result.path = kmalloc((wstrlen(buf, 1024) + 1) * sizeof(wide_char_t));
+	memcpy(result.path, buf, (wstrlen(buf, 1024) + 1) * sizeof(wide_char_t));
+
+	w_parse_read(buf, path, '/', entry_count - 1);
+	result.file_name = kmalloc((wstrlen(buf, 1024) + 1) * sizeof(wide_char_t));
+	memcpy(result.file_name, buf, (wstrlen(buf, 1024) + 1) * sizeof(wide_char_t));
+	
+	kfree(buf);
+	return result;
+}

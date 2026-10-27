@@ -42,13 +42,15 @@ uos_result vfs_check_name(const char* name);
 uos_result vfs_mount_gpt_partitions(uobject_ref storage_device_obj);
 
 // filesystem endpoint functions
-uos_result create_file(const wide_char_t* file_path, const wide_char_t* file_name);
-uos_result create_directory(const wide_char_t* dir_path, const wide_char_t* dir_name);
-uos_result delete_file(const wide_char_t* file_path);
-u_fs_file_info read_file_info(const wide_char_t* file_path);
+uos_result create_file(const wide_char_t* path);
+uos_result create_directory(const wide_char_t* path);
+uos_result delete(const wide_char_t* path);
+u_fs_file_info read_info(const wide_char_t* path);
 uos_result read(const wide_char_t* file_path, size_t read_offset, size_t read_len, void* read_buffer);
 uos_result write(const wide_char_t* file_path, size_t write_offset, size_t write_len, void* write_buffer);
-uos_result rename(const wide_char_t* file_path, const wide_char_t* new_name);
+uos_result copy(const wide_char_t* src_path, const wide_char_t* dst_path);
+uos_result move(const wide_char_t* src_path, const wide_char_t* dst_path);
+uos_result resize_file(const wide_char_t* file_path, size_t new_size);
 uos_result get_dir_childs(const wide_char_t* dir_path, wide_char_t*** child_names, size_t* names_buffer_size); // NOTE: DO NOT FORGET TO FREE BUFFERS AFTER USE!
 
 // debug
